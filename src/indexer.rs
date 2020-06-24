@@ -51,6 +51,73 @@ fn get_doc_id(doc_file:&str) -> u32
     doc_id
 }
 
+fn show_all(m: & HashMap<u128,WordBlock>)
+{
+    for (k, v) in m.iter() {
+        println!("word: {} ({})",unhash_word(*k), v.count);
+        let mut i = 0;
+        loop
+        {
+            //Is it time to leave?
+            if i >= v.buffer.len()
+            {
+                break;
+            }
+
+            //First is always the doc_id
+            let doc_id = unsafe { std::mem::transmute::<[u8; 4], u32>([v.buffer[i], v.buffer[i + 1], v.buffer[i + 2], v.buffer[i + 3]]) }.to_be();
+            println!("  doc_id: {}",doc_id);
+            i = i + 4;
+
+            loop
+            {
+                let address = unsafe { std::mem::transmute::<[u8; 2], u16>([v.buffer[i] & 0x3f, v.buffer[i + 1]]) }.to_be();
+          
+                println!("   {}-{} ({})", format!("{:08b}", v.buffer[i]), format!("{:08b}", v.buffer[i + 1]),address);
+
+                let first_byte = v.buffer[i];
+                //Check if extended address
+                if address == 16383
+                {
+                    i = i + 2;
+                    let address = unsafe { std::mem::transmute::<[u8; 4], u32>([0,v.buffer[i], v.buffer[i + 1], v.buffer[i + 2]]) }.to_be();
+                    println!("    {}-{}-{} ext. ({})", format!("{:08b}", v.buffer[i]), format!("{:08b}", v.buffer[i + 1]), format!("{:08b}", v.buffer[i + 2]),address );
+                    i = i + 3;
+                }
+                else
+                {
+                    i = i + 2;
+                    //This means end of document bytes are reached for this document
+                    if address == 16382
+                    {
+                        println!("   end of doc.");
+                        break;
+                    }
+                }
+
+                //If law is present
+                if first_byte & 0x80 == 0x80 
+                {
+                    println!("    law:{}", format!("{:08b}", v.buffer[i]));
+                    i = i + 1;
+                }
+
+                
+                //If raw is present
+                if first_byte & 0x40 == 0x40 
+                {
+                    println!("    raw:{}", format!("{:08b}", v.buffer[i]));
+                    i = i + 1;
+                }
+
+
+            }
+
+        }
+
+    }
+
+}
 
 //adds a word position to a particular WordBlock along with adjacent words
 fn add_word_to_hash_map(doc_id:u32,word_index:u32,law:u8,w:u128,raw:u8,hm:&mut HashMap<u128,WordBlock>)
@@ -60,7 +127,7 @@ fn add_word_to_hash_map(doc_id:u32,word_index:u32,law:u8,w:u128,raw:u8,hm:&mut H
     //Write the doc_id if necessary
     if doc_id!=wb.latest_doc_id
     {
-        //Write terminator bytes for previous doc positions
+        //Write terminator bytes for previous doc
         if wb.buffer.len() > 0
         {
             wb.buffer.push(0xff); 
@@ -78,75 +145,102 @@ fn add_word_to_hash_map(doc_id:u32,word_index:u32,law:u8,w:u128,raw:u8,hm:&mut H
 
     //Calculate the offset
     let offset  = word_index - wb.latest_index;
-    let is_offset_overflow = offset >= 16382;
-    
-    let mut lr_bits:u8 = 0x00; //law & raw are both 0
+    let is_offset_overflow = offset >= 32766;
 
-    if law == 255 && raw!=255
+    let mut more_ind = 0x7f; //initial more indicator
+  
+    //set more indicator to true if there is law or raw or offset overflow
+    if law != 255 || raw!=255 || is_offset_overflow
     {
-        lr_bits = 0x40;
-    }
-    else if law !=255 && raw == 255
-    {
-        lr_bits = 0x80;
-    }
-    else if law!=255 && raw != 255
-    {
-        lr_bits = 0xc0;
+        more_ind = 0xff;
     }
 
-
-
-    //if offset is less than 16382 then write the bytes
+    //if there is no offset overflow
     if !is_offset_overflow
     {
-        wb.buffer.push(((offset as u16 >> 8) as u8 & 0xff | lr_bits) as u8);
+        //push first two bytes with offset information
+        wb.buffer.push(((offset as u16 >> 8) as u8 & more_ind) as u8);
         wb.buffer.push((offset as u16 & 0xff) as u8);
 
-        wb.count_long = wb.count_long + 2;
+        let mut more_type_bits = 0;
+
+        if law !=255 && raw == 255
+        {
+            more_type_bits = 0xbf;
+        }
+        else if law == 255 && raw!=255
+        {
+            more_type_bits = 0x7f;
+        }
+        else if law!=255 && raw != 255
+        {
+            more_type_bits = 0xff;
+        }
+    
+        //if either law or raw but not both
+        if more_type_bits != 0xff
+        {
+            if law !=255 
+            {
+                wb.buffer.push(more_type_bits & law);
+            }
+            else if raw != 255
+            {
+                wb.buffer.push(more_type_bits & raw);
+            }
+        }
+        else //otherwise if both are set
+        {
+            //always push law then raw
+            wb.buffer.push(more_type_bits & law);
+            wb.buffer.push(raw);
+        }
     }
-    else
+    else //This indicates offset overflow.
     {
-        wb.buffer.push(lr_bits | 0x3f); //write all 1s indicating extended offset
-        wb.buffer.push(0xff); //write all 1s indicating extended offset
-        //now write an additional 3 bytes with the extended offset address
-        let b2 : u8 = ((offset as u32 >> 16) & 0xff) as u8;
-        let b3 : u8 = ((offset as u32 >> 8) & 0xff) as u8;
-        let b4 : u8 = (offset as u32 & 0xff) as u8;
-        wb.buffer.extend([b2, b3, b4].iter().copied());
+        //Write the firt 15 bits of the offset address along with more_ind
+        wb.buffer.push(((offset as u16 >> 8) as u8 & more_ind) as u8);
+        wb.buffer.push((offset as u16 & 0xff) as u8);
 
+        //0b001
+        let mut ext_prefix = 0b00011111;
 
-        wb.count_long = wb.count_long + 5;
- 
+        if law !=255 || raw != 255
+        {
+            ext_prefix = 0b00111111;
+        }
+       
+        //push the 5 remaining bits along with ext_prefix
+        wb.buffer.push((offset as u32 >> 15) as u8 & ext_prefix);
+
+        //if there is law or raw
+        if law !=255 || raw != 255
+        {
+            if law !=255 && raw==255
+            {
+                wb.buffer.push(0xbf & law);
+            }
+            else if raw != 255 && law==255
+            {
+                wb.buffer.push(0x7f & raw);
+            }
+            else if law!=255 && raw != 255
+            {
+                wb.buffer.push(0xff & law);
+                wb.buffer.push(raw);
+            }
+        
+        }
+
     }
 
 
-    //if there is a left adjacent common word then write it.
-    if law !=255 
-    {
-        wb.buffer.push(law);
-        wb.count_long = wb.count_long + 1;
-    }
 
-    //if there is a right adjacent common word then write it.
-    if raw !=255
-    {
-        wb.buffer.push(raw);
-        wb.count_long = wb.count_long + 1;
-    }
-
+   
     wb.latest_index = word_index; //Make sure to set the latest_index
     wb.count = wb.count + 1;
 
-    if offset<=64
-    {
-        wb.count_64 = wb.count_64 + 1;
-    }
-
-    if offset<=256
-    {
-        wb.count_256 = wb.count_256 + 1;
-    }
+   
 }
 
 //Maps regular word hash to common word hash code
@@ -442,3 +536,5 @@ pub fn index_files(source_path:&'static str, common_word_path:&'static str)
     }
 
 }
+
+
