@@ -54,12 +54,7 @@ fn get_doc_id(doc_file:&str) -> u32
 fn show_all(m: & HashMap<u128,WordBlock>)
 {
     for (k, v) in m.iter() {
-        let w = unhash_word(*k);
-        if w != "distaff"
-        {
-            continue;
-        }
-        println!("word: {} ({})",unhash_word(*k), v.count);
+        //println!("word: {} ({})",unhash_word(*k), v.count);
         let mut i = 0;
         loop
         {
@@ -71,7 +66,7 @@ fn show_all(m: & HashMap<u128,WordBlock>)
 
             //First is always the doc_id
             let doc_id = unsafe { std::mem::transmute::<[u8; 4], u32>([v.buffer[i], v.buffer[i + 1], v.buffer[i + 2], v.buffer[i + 3]]) }.to_be();
-            println!("  doc_id: {}",doc_id);
+            //println!("  doc_id: {}",doc_id);
             i = i + 4;
 
             loop
@@ -80,7 +75,7 @@ fn show_all(m: & HashMap<u128,WordBlock>)
                 let address_first_byte = v.buffer[i] & 0b01111111;
                 let address_second_byte = v.buffer[i + 1];
                 let address = unsafe { std::mem::transmute::<[u8; 2], u16>([address_first_byte, v.buffer[i + 1]]) }.to_be();
-                print!("   {}-{} ({}) ", format!("{:08b}", raw_first_byte), format!("{:08b}", v.buffer[i + 1]),address);
+                //print!("   {}-{} ({}) ", format!("{:08b}", raw_first_byte), format!("{:08b}", v.buffer[i + 1]),address);
                 
               
                 i = i + 2;
@@ -90,12 +85,12 @@ fn show_all(m: & HashMap<u128,WordBlock>)
                 //This means end of document bytes are reached for this document
                 if address == 0x7fff && raw_first_byte & 0b10000000 == 0
                 {
-                    println!(" end of doc.");
+                    //println!(" end of doc.");
                     break;
                 }
                 else 
                 {
-                    println!();
+                    //println!();
                 }
 
                 
@@ -107,19 +102,19 @@ fn show_all(m: & HashMap<u128,WordBlock>)
                     let aw = v.buffer[i] & 0b00111111;
                     if more_type == 1 //only law is present
                     {
-                        println!("    law:{}", format!("{:08b}", aw));
+                        //println!("    raw:{}", format!("{:08b}", aw));
                         i = i + 1;
                     }
                     else if more_type == 2 //only raw is present
                     {
-                        println!("    raw:{}", format!("{:08b}", aw));
+                        //println!("    law:{}", format!("{:08b}", aw));
                         i = i + 1;
                     }
                     else if more_type == 3 //both law & raw present
                     {
-                        println!("    law:{}", format!("{:08b}", aw));
+                        //println!("    law:{}", format!("{:08b}", aw));
                         i = i + 1;
-                        println!("    raw:{}", format!("{:08b}", v.buffer[i]));
+                        //println!("    raw:{}", format!("{:08b}", v.buffer[i]));
                         i = i + 1;
                     }
                     else if more_type == 0 //extended address
@@ -130,13 +125,14 @@ fn show_all(m: & HashMap<u128,WordBlock>)
                         {
                             b1 = b1 | 0b10000000; 
                         }
-                        let overflow_bits = v.buffer[i] >> 1 & 0b00001111; //shift everyone down by 1
+                        let overflow_bits = (v.buffer[i] >> 1) & 0b00001111; //shift everyone down by 1
                         let address = unsafe { std::mem::transmute::<[u8; 4], u32>([0,overflow_bits, b1, b2]) }.to_be();
-                        println!("    {}-{}-{} ext. ({})", format!("{:04b}", overflow_bits), format!("{:08b}", b1), format!("{:08b}", b2),address);
+                        //println!("    {}-{}-{} ext. ({})", format!("{:04b}", overflow_bits), format!("{:08b}", b1), format!("{:08b}", b2),address);
                         let mut ext_more_bit = false;
 
+                        //println!("ext address byte: {}",format!("{:08b}", v.buffer[i]));
                         //Check extended more bit
-                        if v.buffer[i] & 0b001 == 0b001
+                        if v.buffer[i] & 0b00100000 == 0b00100000
                         {
                             ext_more_bit = true;
                         }
@@ -149,19 +145,19 @@ fn show_all(m: & HashMap<u128,WordBlock>)
                  
                             if ext_more_type == 1 //only law is present
                             {
-                                println!("    lawe:{}", format!("{:08b}", ext_aw));
+                                //println!("    rawe:{}", format!("{:08b}", ext_aw));
                                 i = i + 1;
                             }
                             else if ext_more_type == 2 //only raw is present
                             {
-                                println!("    rawe:{}", format!("{:08b}", ext_aw));
+                                //println!("    lawe:{}", format!("{:08b}", ext_aw));
                                 i = i + 1;
                             }
                             else if ext_more_type == 3 //both law & raw present
                             {
-                                println!("    lawe:{}", format!("{:08b}", ext_aw));
+                                //println!("    lawe:{}", format!("{:08b}", ext_aw));
                                 i = i + 1;
-                                println!("    rawe:{}", format!("{:08b}", v.buffer[i]));
+                                //println!("    rawe:{}", format!("{:08b}", v.buffer[i]));
                                 i = i + 1;
                             }
                             else
@@ -241,11 +237,11 @@ fn add_word_to_hash_map(doc_id:u32,word_index:u32,law:u8,w:u128,raw:u8,hm:&mut H
 
         if law !=255 && raw==255 //If left is set
         {
-            wb.buffer.push(0b01000000 | law);
+            wb.buffer.push(0b10000000 | law);
         }
         else if raw != 255 && law==255 //If right is set
         {
-            wb.buffer.push(0b10000000 | raw);
+            wb.buffer.push(0b01000000 | raw);
         }
         else if law!=255 && raw != 255 //if both
         {
@@ -260,24 +256,25 @@ fn add_word_to_hash_map(doc_id:u32,word_index:u32,law:u8,w:u128,raw:u8,hm:&mut H
         wb.buffer.push(((offset as u16 >> 8) as u8 | more_ind) as u8);
         wb.buffer.push((offset as u16 & 0xff) as u8);
 
-        //0b001
-        let mut ext_prefix = 0b00011111;
+        //0b0001
+        let mut ext_byte = (offset as u32 >> 15) as u8 & 0b00011111;
 
+        //if law or raw is present explicitly set the ext_more bit.
         if law !=255 || raw != 255
         {
-            ext_prefix = 0b00111111;
+            ext_byte = ext_byte | 0b00100000;
         }
        
-        //push the 5 remaining bits along with ext_prefix
-        wb.buffer.push((offset as u32 >> 15) as u8 & ext_prefix);
+        //push the 5 remaining extended offset address bits  along with 3 leading bits 00 & 0 or 1 depending on the presence of law and/or raw
+        wb.buffer.push(ext_byte);
 
         if law !=255 && raw==255 //If left is set
         {
-            wb.buffer.push(0b01000000 | law);
+            wb.buffer.push(0b10000000 | law);
         }
         else if raw != 255 && law==255 //If right is set
         {
-            wb.buffer.push(0b10000000 | raw);
+            wb.buffer.push(0b01000000 | raw);
         }
         else if law!=255 && raw != 255 //if both
         {
@@ -357,6 +354,7 @@ fn parse_file(doc_id: u32, file_name: &str, hm:&mut HashMap<u128,WordBlock>, com
         }
         if word.len() > 0
         {
+            
             //l = w;
             lawh = cw;
             
@@ -470,7 +468,7 @@ fn index(source_path:&str, common_word_path:&str, worker_id:u8, worker_count:u8)
     get_files(source_path, & mut doc_files).expect("Error Loading source file path.");
 
     doc_files.sort();
-    doc_files.resize(10,"".to_string());
+    doc_files.resize(20000,"".to_string());
 
     let mut count = 0;
  
