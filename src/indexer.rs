@@ -44,7 +44,6 @@ fn get_files(directory: &str, v:&mut Vec<String>) -> io::Result<()> {
 //derives a document id from file name
 fn get_doc_id(doc_file:&str) -> u32 
 {
-    println!("{}",doc_file);
     let path_parts_ar:Vec<&str> = doc_file.split("\\").collect();
     let file_parts_ar:Vec<&str> = path_parts_ar[path_parts_ar.len() - 1].split(".").collect();
     let name_parts_ar:Vec<&str> = file_parts_ar[0].split("-").collect();
@@ -55,6 +54,11 @@ fn get_doc_id(doc_file:&str) -> u32
 fn show_all(m: & HashMap<u128,WordBlock>)
 {
     for (k, v) in m.iter() {
+        let w = unhash_word(*k);
+        if w != "distaff"
+        {
+            continue;
+        }
         println!("word: {} ({})",unhash_word(*k), v.count);
         let mut i = 0;
         loop
@@ -118,7 +122,7 @@ fn show_all(m: & HashMap<u128,WordBlock>)
                         println!("    raw:{}", format!("{:08b}", v.buffer[i]));
                         i = i + 1;
                     }
-                    else //extended address
+                    else if more_type == 0 //extended address
                     {
                         let b2 = address_second_byte;
                         let mut b1 = address_first_byte;
@@ -145,19 +149,19 @@ fn show_all(m: & HashMap<u128,WordBlock>)
                  
                             if ext_more_type == 1 //only law is present
                             {
-                                println!("    law:{}", format!("{:08b}", ext_aw));
+                                println!("    lawe:{}", format!("{:08b}", ext_aw));
                                 i = i + 1;
                             }
                             else if ext_more_type == 2 //only raw is present
                             {
-                                println!("    raw:{}", format!("{:08b}", ext_aw));
+                                println!("    rawe:{}", format!("{:08b}", ext_aw));
                                 i = i + 1;
                             }
                             else if ext_more_type == 3 //both law & raw present
                             {
-                                println!("    law:{}", format!("{:08b}", ext_aw));
+                                println!("    lawe:{}", format!("{:08b}", ext_aw));
                                 i = i + 1;
-                                println!("    raw:{}", format!("{:08b}", v.buffer[i]));
+                                println!("    rawe:{}", format!("{:08b}", v.buffer[i]));
                                 i = i + 1;
                             }
                             else
@@ -169,6 +173,11 @@ fn show_all(m: & HashMap<u128,WordBlock>)
 
                         
                     }
+                    else
+                    {
+                        panic!("more_type may not be greater than 3");
+                    }
+
 
                     
                 }
@@ -314,6 +323,7 @@ fn parse_file(doc_id: u32, file_name: &str, hm:&mut HashMap<u128,WordBlock>, com
     for line in reader.lines() {
         let st = line?;
        
+      
         for c in st.chars() 
         { 
             if c.is_alphanumeric() || c=='\''
@@ -343,11 +353,6 @@ fn parse_file(doc_id: u32, file_name: &str, hm:&mut HashMap<u128,WordBlock>, com
                     word.clear();
                     word_index = word_index + 1;
                 }
-                else 
-                {
-                    word.clear();
-                }
-
             }
         }
         if word.len() > 0
@@ -373,6 +378,8 @@ fn parse_file(doc_id: u32, file_name: &str, hm:&mut HashMap<u128,WordBlock>, com
             {
                 add_word_to_hash_map(doc_id,word_index, cw, r, nomatch, hm);
             }
+
+            word.clear();
 
             word_index = word_index + 1;
         }
@@ -463,7 +470,7 @@ fn index(source_path:&str, common_word_path:&str, worker_id:u8, worker_count:u8)
     get_files(source_path, & mut doc_files).expect("Error Loading source file path.");
 
     doc_files.sort();
-    doc_files.resize(5000,"".to_string());
+    doc_files.resize(10,"".to_string());
 
     let mut count = 0;
  
