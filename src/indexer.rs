@@ -44,6 +44,7 @@ fn get_files(directory: &str, v:&mut Vec<String>) -> io::Result<()> {
 //derives a document id from file name
 fn get_doc_id(doc_file:&str) -> u32 
 {
+    println!("{}",doc_file);
     let path_parts_ar:Vec<&str> = doc_file.split("\\").collect();
     let file_parts_ar:Vec<&str> = path_parts_ar[path_parts_ar.len() - 1].split(".").collect();
     let name_parts_ar:Vec<&str> = file_parts_ar[0].split("-").collect();
@@ -71,45 +72,106 @@ fn show_all(m: & HashMap<u128,WordBlock>)
 
             loop
             {
-                let address = unsafe { std::mem::transmute::<[u8; 2], u16>([v.buffer[i] & 0x3f, v.buffer[i + 1]]) }.to_be();
-          
-                println!("   {}-{} ({})", format!("{:08b}", v.buffer[i]), format!("{:08b}", v.buffer[i + 1]),address);
+                let raw_first_byte = v.buffer[i];
+                let address_first_byte = v.buffer[i] & 0b01111111;
+                let address_second_byte = v.buffer[i + 1];
+                let address = unsafe { std::mem::transmute::<[u8; 2], u16>([address_first_byte, v.buffer[i + 1]]) }.to_be();
+                print!("   {}-{} ({}) ", format!("{:08b}", raw_first_byte), format!("{:08b}", v.buffer[i + 1]),address);
+                
+              
+                i = i + 2;
 
-                let first_byte = v.buffer[i];
                 //Check if extended address
-                if address == 16383
-                {
-                    i = i + 2;
-                    let address = unsafe { std::mem::transmute::<[u8; 4], u32>([0,v.buffer[i], v.buffer[i + 1], v.buffer[i + 2]]) }.to_be();
-                    println!("    {}-{}-{} ext. ({})", format!("{:08b}", v.buffer[i]), format!("{:08b}", v.buffer[i + 1]), format!("{:08b}", v.buffer[i + 2]),address );
-                    i = i + 3;
-                }
-                else
-                {
-                    i = i + 2;
-                    //This means end of document bytes are reached for this document
-                    if address == 16382
-                    {
-                        println!("   end of doc.");
-                        break;
-                    }
-                }
 
-                //If law is present
-                if first_byte & 0x80 == 0x80 
+                //This means end of document bytes are reached for this document
+                if address == 0x7fff && raw_first_byte & 0b10000000 == 0
                 {
-                    println!("    law:{}", format!("{:08b}", v.buffer[i]));
-                    i = i + 1;
+                    println!(" end of doc.");
+                    break;
+                }
+                else 
+                {
+                    println!();
                 }
 
                 
-                //If raw is present
-                if first_byte & 0x40 == 0x40 
-                {
-                    println!("    raw:{}", format!("{:08b}", v.buffer[i]));
-                    i = i + 1;
-                }
+                let more_bit = raw_first_byte & 0x80 == 0x80;
 
+                if more_bit
+                {
+                    let more_type = v.buffer[i] >> 6;
+                    let aw = v.buffer[i] & 0b00111111;
+                    if more_type == 1 //only law is present
+                    {
+                        println!("    law:{}", format!("{:08b}", aw));
+                        i = i + 1;
+                    }
+                    else if more_type == 2 //only raw is present
+                    {
+                        println!("    raw:{}", format!("{:08b}", aw));
+                        i = i + 1;
+                    }
+                    else if more_type == 3 //both law & raw present
+                    {
+                        println!("    law:{}", format!("{:08b}", aw));
+                        i = i + 1;
+                        println!("    raw:{}", format!("{:08b}", v.buffer[i]));
+                        i = i + 1;
+                    }
+                    else //extended address
+                    {
+                        let b2 = address_second_byte;
+                        let mut b1 = address_first_byte;
+                        if v.buffer[i] & 0b1 == 0b1 //if the least bit in the overflow byte is set then set the high bit in the extended address
+                        {
+                            b1 = b1 | 0b10000000; 
+                        }
+                        let overflow_bits = v.buffer[i] >> 1 & 0b00001111; //shift everyone down by 1
+                        let address = unsafe { std::mem::transmute::<[u8; 4], u32>([0,overflow_bits, b1, b2]) }.to_be();
+                        println!("    {}-{}-{} ext. ({})", format!("{:04b}", overflow_bits), format!("{:08b}", b1), format!("{:08b}", b2),address);
+                        let mut ext_more_bit = false;
+
+                        //Check extended more bit
+                        if v.buffer[i] & 0b001 == 0b001
+                        {
+                            ext_more_bit = true;
+                        }
+                        i = i + 1;
+
+                        if ext_more_bit
+                        {
+                            let ext_more_type = v.buffer[i] >> 6;
+                            let ext_aw = v.buffer[i] & 0b00111111;
+                 
+                            if ext_more_type == 1 //only law is present
+                            {
+                                println!("    law:{}", format!("{:08b}", ext_aw));
+                                i = i + 1;
+                            }
+                            else if ext_more_type == 2 //only raw is present
+                            {
+                                println!("    raw:{}", format!("{:08b}", ext_aw));
+                                i = i + 1;
+                            }
+                            else if ext_more_type == 3 //both law & raw present
+                            {
+                                println!("    law:{}", format!("{:08b}", ext_aw));
+                                i = i + 1;
+                                println!("    raw:{}", format!("{:08b}", v.buffer[i]));
+                                i = i + 1;
+                            }
+                            else
+                            {
+                                panic!("ext_more_type must be greater than 0");
+                            }
+
+                        }
+
+                        
+                    }
+
+                    
+                }
 
             }
 
@@ -130,8 +192,8 @@ fn add_word_to_hash_map(doc_id:u32,word_index:u32,law:u8,w:u128,raw:u8,hm:&mut H
         //Write terminator bytes for previous doc
         if wb.buffer.len() > 0
         {
-            wb.buffer.push(0xff); 
-            wb.buffer.push(0xfe);
+            wb.buffer.push(0x7f); 
+            wb.buffer.push(0xff);
         }
 
         wb.latest_doc_id = doc_id;
@@ -147,59 +209,46 @@ fn add_word_to_hash_map(doc_id:u32,word_index:u32,law:u8,w:u128,raw:u8,hm:&mut H
     let offset  = word_index - wb.latest_index;
     let is_offset_overflow = offset >= 32766;
 
-    let mut more_ind = 0x7f; //initial more indicator
+    let mut more_ind = 0; //initial more indicator
   
     //set more indicator to true if there is law or raw or offset overflow
     if law != 255 || raw!=255 || is_offset_overflow
     {
-        more_ind = 0xff;
+        more_ind = 0b10000000;
     }
 
     //if there is no offset overflow
     if !is_offset_overflow
     {
-        //push first two bytes with offset information
-        wb.buffer.push(((offset as u16 >> 8) as u8 & more_ind) as u8);
+        //push first two bytes with offset information and more indicator
+
+        //println!("    b1:{}", format!("{:08b}", b1));
+        //println!("    b2:{}", format!("{:08b}", b2));
+
+        wb.buffer.push(((offset as u16 >> 8) as u8 | more_ind) as u8);
         wb.buffer.push((offset as u16 & 0xff) as u8);
 
-        let mut more_type_bits = 0;
 
-        if law !=255 && raw == 255
+
+        if law !=255 && raw==255 //If left is set
         {
-            more_type_bits = 0xbf;
+            wb.buffer.push(0b01000000 | law);
         }
-        else if law == 255 && raw!=255
+        else if raw != 255 && law==255 //If right is set
         {
-            more_type_bits = 0x7f;
+            wb.buffer.push(0b10000000 | raw);
         }
-        else if law!=255 && raw != 255
+        else if law!=255 && raw != 255 //if both
         {
-            more_type_bits = 0xff;
-        }
-    
-        //if either law or raw but not both
-        if more_type_bits != 0xff
-        {
-            if law !=255 
-            {
-                wb.buffer.push(more_type_bits & law);
-            }
-            else if raw != 255
-            {
-                wb.buffer.push(more_type_bits & raw);
-            }
-        }
-        else //otherwise if both are set
-        {
-            //always push law then raw
-            wb.buffer.push(more_type_bits & law);
+            wb.buffer.push(0b11000000 | law);
             wb.buffer.push(raw);
         }
+
     }
     else //This indicates offset overflow.
     {
         //Write the firt 15 bits of the offset address along with more_ind
-        wb.buffer.push(((offset as u16 >> 8) as u8 & more_ind) as u8);
+        wb.buffer.push(((offset as u16 >> 8) as u8 | more_ind) as u8);
         wb.buffer.push((offset as u16 & 0xff) as u8);
 
         //0b001
@@ -213,34 +262,25 @@ fn add_word_to_hash_map(doc_id:u32,word_index:u32,law:u8,w:u128,raw:u8,hm:&mut H
         //push the 5 remaining bits along with ext_prefix
         wb.buffer.push((offset as u32 >> 15) as u8 & ext_prefix);
 
-        //if there is law or raw
-        if law !=255 || raw != 255
+        if law !=255 && raw==255 //If left is set
         {
-            if law !=255 && raw==255
-            {
-                wb.buffer.push(0xbf & law);
-            }
-            else if raw != 255 && law==255
-            {
-                wb.buffer.push(0x7f & raw);
-            }
-            else if law!=255 && raw != 255
-            {
-                wb.buffer.push(0xff & law);
-                wb.buffer.push(raw);
-            }
-        
+            wb.buffer.push(0b01000000 | law);
+        }
+        else if raw != 255 && law==255 //If right is set
+        {
+            wb.buffer.push(0b10000000 | raw);
+        }
+        else if law!=255 && raw != 255 //if both
+        {
+            wb.buffer.push(0b11000000 | law);
+            wb.buffer.push(raw);
         }
 
     }
-
-
-
    
     wb.latest_index = word_index; //Make sure to set the latest_index
     wb.count = wb.count + 1;
-
-   
+  
 }
 
 //Maps regular word hash to common word hash code
@@ -429,6 +469,11 @@ fn index(source_path:&str, common_word_path:&str, worker_id:u8, worker_count:u8)
  
     for doc_file in doc_files 
     {
+        if doc_file == ""
+        {
+            break;
+        }
+
         let doc_id = get_doc_id(&doc_file);
         if (doc_id % worker_count as u32) as u8 == worker_id || worker_id == 255
         {
@@ -452,7 +497,7 @@ fn add_terminators(m: &mut HashMap<u128,WordBlock>)
         //Add terminating bytes to each word in Hashmap
         match m.get_mut(&key) 
         {
-            Some(v) => v.buffer.extend([0xff, 0xfe].iter().copied()), 
+            Some(v) => v.buffer.extend([0x7f, 0xff].iter().copied()), 
             None => panic!("key not found.")
         }
     }
@@ -503,7 +548,7 @@ pub fn index_files(source_path:&'static str, common_word_path:&'static str)
 
         let e = s.elapsed();
         println!("time: {:?} count:{:?}", e,counts);
-        //show_all(&hm);
+        show_all(&hm);
 
         //list_top_64(& hm);
   
