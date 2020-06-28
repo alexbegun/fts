@@ -1,6 +1,8 @@
-use std::io::{self};
 mod indexer;
+mod word_hash;
+mod common_words;
 
+use std::io::{self};
 
 fn main()-> io::Result<()>  {
     //let path: &'static str = "C:\\Dev\\books\\samples";
