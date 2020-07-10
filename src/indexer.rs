@@ -1,6 +1,7 @@
     use crate::word_hash;
     use crate::common_words;
     use crate::indexer_diagnostics;
+    use crate::index_writer;
     
     use std::collections::HashMap;
     use std::fs::File;
@@ -338,6 +339,8 @@
             let e = s.elapsed();
             println!("time: {:?} count:{:?}", e,counts);
             indexer_diagnostics::traverse_hm(&hm, false);
+
+            index_writer::write_new("C:\\Dev\\fts\\data\\wad.bin", "C:\\Dev\\fts\\data\\wordblock.bin", &hm,50);
 
             //list_top_64(& hm);
     

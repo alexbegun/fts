@@ -11,7 +11,6 @@ fn main()-> io::Result<()>  {
     let path: &'static str = "C:\\Dev\\books";
     let common_word_path: &'static str = "C:\\Dev\\fts\\src\\top64.txt";
     indexer::index_files(path, common_word_path);
-    index_writer::write_test();
 
 
     //let hw = hash_word_to_u128("abcdefghijklmnop");
