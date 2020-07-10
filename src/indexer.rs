@@ -1,5 +1,6 @@
     use crate::word_hash;
     use crate::common_words;
+    use crate::indexer_diagnostics;
     
     use std::collections::HashMap;
     use std::fs::File;
@@ -12,10 +13,10 @@
     
      //Main structure representing a Word Block
     pub struct WordBlock {
-        buffer: Vec<u8>,
+        pub buffer: Vec<u8>,
         latest_doc_id:u32,
         latest_index:u32,
-        count:u64,
+        pub count:u64,
         count_64:u64,
         count_256:u64,
         count_long:u64,
@@ -326,7 +327,7 @@
 
     pub fn index_files(source_path:&'static str, common_word_path:&'static str)
     {
-        let worker_count = 8;
+        let worker_count = 1;
 
         if worker_count == 1
         {
@@ -336,7 +337,7 @@
 
             let e = s.elapsed();
             println!("time: {:?} count:{:?}", e,counts);
-            //show_all(&hm);
+            indexer_diagnostics::traverse_hm(&hm, false);
 
             //list_top_64(& hm);
     
