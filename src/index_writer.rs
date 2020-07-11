@@ -1,5 +1,4 @@
-extern crate libc;
-use std::fs::File;
+use byteorder::{ByteOrder, BigEndian};
 use std::fs::OpenOptions;
 
 use std::collections::HashMap;
@@ -10,11 +9,6 @@ use std::io::{self, prelude::*, BufWriter};
 use std::fs::{self};
 use std::collections::BTreeMap;
 
-
-use std::io::SeekFrom;
-
-
-use std::mem;
 
 //word address directory value
 pub struct WadValue {
@@ -54,51 +48,20 @@ fn compute_capacity(block_length: u32, fill_factor: u8) -> u32
     cap
 }
 
-fn build_wad(hm:& HashMap<u128,indexer::WordBlock>, fill_factor: u8) -> BTreeMap<u128,WadValue>
-{
-    let key_v = hm.keys().cloned().collect::<Vec<u128>>();
-    let mut wad_map:BTreeMap<u128,WadValue> = BTreeMap::new();
-
-    for key in key_v 
-    {
-        match hm.get(&key) 
-        {
-            Some(v) =>  
-                        {
-                            let wv = WadValue {capacity:compute_capacity(v.buffer.len() as u32,fill_factor),position:0, address:0};
-                            wad_map.insert(key, wv);
-                        }, 
-
-            None => panic!("key not found.")
-        }
-    }
-
-    /*
-    for (k, _) in &wad_map 
-    {
-        println!("{}", k);
-    }
-    */
-
-    wad_map
-}
 
 pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::WordBlock>,  fill_factor: u8)-> io::Result<()>
 {
 
-        
     //let mut wad_map:BTreeMap<u128,WadValue> = build_wad(hm, fill_factor);
     let mut wad_map:BTreeMap<u128,WadValue> = BTreeMap::new();
     let mut address = 0;
     let mut bfh = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(block_file).unwrap();
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(block_file).unwrap();
 
-    let mut count = 0;
-    let mut zero_count = 0;
-    
+    //Write to block file and fill wad_map
     for (key, v) in hm.iter() 
     {
         let len = v.buffer.len() as u32;
@@ -114,15 +77,32 @@ pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::W
 
         bfh.write_all(&pad_buffer)?; //write padding
 
-        if len == 0
-        {
-            zero_count = zero_count + 1;
-        }
-
-        count = count + 1;
     }
 
-    println!("{} {}",count, zero_count);
+    let mut wadh = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(wad_file).unwrap();
 
+    //Now write wad_map to wad_file
+    for (key, v) in &wad_map 
+    {
+        let mut key_bytes = [0; 16];
+        BigEndian::write_uint128(&mut key_bytes, *key, 16);
+        wadh.write_all(&key_bytes)?;
+
+        let mut capacity = [0; 4];
+        BigEndian::write_u32(&mut capacity, v.capacity);
+        wadh.write_all(&capacity)?;
+
+        let mut address = [0; 4];
+        BigEndian::write_u32(&mut address, v.address);
+        wadh.write_all(&address)?;
+
+        let mut position = [0; 4];
+        BigEndian::write_u32(&mut position, v.position);
+        wadh.write_all(&position)?;
+    }
     Ok(())
 }
