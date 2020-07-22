@@ -8,8 +8,8 @@ use std::io::{self};
 
 fn main()-> io::Result<()>  {
     //let path: &'static str = "C:\\Dev\\books\\samples";
-    let path: &'static str = "C:\\Dev\\books";
-    let common_word_path: &'static str = "C:\\Dev\\fts\\src\\top64.txt";
+    let path: &'static str = "C:\\Dev\\books\\lib";
+    let common_word_path: &'static str = "C:\\Dev\\rust\\fts\\src\\top64.txt";
     indexer::index_files(path, common_word_path);
 
 

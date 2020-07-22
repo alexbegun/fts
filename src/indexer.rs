@@ -15,12 +15,13 @@
      //Main structure representing a Word Block
     pub struct WordBlock {
         pub buffer: Vec<u8>,
-        latest_doc_id:u32,
-        latest_index:u32,
-        pub count:u64,
-        count_64:u64,
-        count_256:u64,
-        count_long:u64,
+        pub latest_doc_id:u32,
+        pub latest_index:u32,
+        pub word_count:u64,
+        
+        pub capacity:u32,
+        pub address:u32,
+        pub position:u32   
     }
 
     // get all files from a directory
@@ -53,7 +54,7 @@
     //adds a word position to a particular WordBlock along with adjacent words
     fn add_word_to_hash_map(doc_id:u32,word_index:u32,law:u8,w:u128,raw:u8,hm:&mut HashMap<u128,WordBlock>)
     {
-        let wb = hm.entry(w).or_insert_with(|| WordBlock {buffer:Vec::with_capacity(64),latest_doc_id:0,latest_index:0,count:0,count_64:0,count_256:0,count_long:0});
+        let wb = hm.entry(w).or_insert_with(|| WordBlock {buffer:Vec::with_capacity(64),latest_doc_id:0,latest_index:0,word_count:0,capacity:0,address:0,position:0});
 
         //Write the doc_id if necessary
         if doc_id!=wb.latest_doc_id
@@ -149,7 +150,7 @@
         }
     
         wb.latest_index = word_index; //Make sure to set the latest_index
-        wb.count = wb.count + 1;
+        wb.word_count = wb.word_count + 1;
     
     }
 
@@ -243,7 +244,7 @@
         Ok(word_index)
     }
 
-    fn index(source_path:&str, common_word_path:&str, worker_id:u8, worker_count:u8) -> HashMap<u128,WordBlock>
+    fn index(source_path:&str, common_word_path:&str, worker_id:u8, worker_count:u8, file_count:u32) -> HashMap<u128,WordBlock>
     {
         let mut hm:HashMap<u128,WordBlock> = HashMap::new();
         let mut com:HashMap<u128, u8> =  HashMap::new();
@@ -253,7 +254,10 @@
         get_files(source_path, & mut doc_files).expect("Error Loading source file path.");
 
         doc_files.sort();
-        doc_files.resize(20000,"".to_string());
+        if file_count > 0
+        {
+            doc_files.resize(file_count as usize,"".to_string());
+        }
 
         let mut count = 0;
     
@@ -298,9 +302,9 @@
     {
         let s = Instant::now();
         for (k, v) in worker.iter() {
-            let wb = master.entry(*k).or_insert_with(|| WordBlock {buffer:Vec::new(),latest_doc_id:0,latest_index:0, count:0,count_64:0,count_256:0,count_long:0});
+            let wb = master.entry(*k).or_insert_with(|| WordBlock {buffer:Vec::new(),latest_doc_id:0,latest_index:0, word_count:0,capacity:0,address:0,position:0});
 
-            wb.count = wb.count + v.count;
+            wb.word_count = wb.word_count + v.word_count;
             wb.buffer.extend(v.buffer.iter().cloned())
         }
         let e = s.elapsed();
@@ -308,21 +312,16 @@
 
     }
 
-    fn get_count(m: & HashMap<u128,WordBlock>) -> (u64,u64,u64,u64,u64)
+    fn get_count(m: & HashMap<u128,WordBlock>) -> (u64,u64)
     {
-        let mut count = 0;
+        let mut word_count = 0;
         let mut byte_count = 0;
-        let mut count_64 = 0;
-        let mut count_256 = 0;
-        let mut count_long = 0;
-        for (_, v) in m.iter() {
-            count = count + v.count;
+          for (_, v) in m.iter() {
+            word_count = word_count + v.word_count;
             byte_count = byte_count + v.buffer.len();
-            count_64 = count_64 + v.count_64;
-            count_256 = count_256 + v.count_256;
-            count_long = count_long + v.count_long;
+       
         }
-        (count,byte_count as u64,count_64 as u64, count_256 as u64, count_long as u64)
+        (word_count,byte_count as u64)
     }
 
 
@@ -333,14 +332,22 @@
         if worker_count == 1
         {
             let s = Instant::now();
-            let hm = index(source_path,common_word_path,255,1);
+            let hm = index(source_path,common_word_path,255,1,500);
             let counts = get_count(&hm);
 
             let e = s.elapsed();
             println!("time: {:?} count:{:?}", e,counts);
             indexer_diagnostics::traverse_hm(&hm, false);
 
-            index_writer::write_new("C:\\Dev\\fts\\data\\wad.bin", "C:\\Dev\\fts\\data\\wordblock.bin", &hm,50);
+            let wad_file = "C:\\Dev\\rust\\fts\\data\\wad.bin";
+            let word_block = "C:\\Dev\\rust\\fts\\data\\wordblock.bin";
+            
+            index_writer::write_new(wad_file ,word_block, &hm,50);
+
+
+            let mut hm2:HashMap<u128,WordBlock> = HashMap::new();
+            indexer_diagnostics::load_hm(wad_file, word_block, &mut hm2);
+
 
             //list_top_64(& hm);
     
@@ -354,7 +361,7 @@
                 // Spin up another thread
                 workers.push(thread::spawn(move || {
                     println!("spawning worker {}", i);
-                    let hm = index(source_path,common_word_path,i,worker_count);
+                    let hm = index(source_path,common_word_path,i,worker_count,0);
                     hm
                 }));
             }

@@ -5,8 +5,7 @@ use std::collections::HashMap;
 use crate::indexer;
 
 
-use std::io::{self, prelude::*, BufWriter};
-use std::fs::{self};
+use std::io::{self, prelude::*};
 use std::collections::BTreeMap;
 
 
@@ -69,6 +68,14 @@ pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::W
         let wv = WadValue {capacity:cap,position:len - 1, address:address};
         address = address + cap;
         wad_map.insert(*key, wv);
+        
+        
+        let mut key_bytes = [0; 16];
+        BigEndian::write_uint128(&mut key_bytes, *key, 16);
+        bfh.write_all(&key_bytes)?; //write key, because this will help later with retrieval
+
+        
+
         bfh.write_all(&v.buffer)?; //write block
        
         let pad_size = (cap - len) as usize;
@@ -85,7 +92,8 @@ pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::W
         .create(true)
         .open(wad_file).unwrap();
 
-    //Now write wad_map to wad_file
+    let mut total_count = 0;
+    //Now write wad_map to wad_filegi
     for (key, v) in &wad_map 
     {
         let mut key_bytes = [0; 16];
@@ -103,6 +111,11 @@ pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::W
         let mut position = [0; 4];
         BigEndian::write_u32(&mut position, v.position);
         wadh.write_all(&position)?;
+
+        total_count = total_count + 1;
     }
+
+    println!("total word count written: {}", total_count);
+
     Ok(())
 }
