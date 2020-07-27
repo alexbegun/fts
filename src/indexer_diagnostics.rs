@@ -6,7 +6,7 @@
     use std::fs::OpenOptions;
     use std::io;
     use std::io::prelude::*;
-    use std::fs::File;
+    
     //Used for statistics
     #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
     struct InstanceCount {
@@ -14,13 +14,25 @@
         word:u128
     }
     
-    pub fn traverse_hm(m: & HashMap<u128,indexer::WordBlock>, emit: bool)
+
+    pub fn print_vec(buffer: &Vec<u8>)
+    {
+        for b in buffer.iter() 
+        {
+            println!("{}",format!("{:08b}", b));
+        }
+    }
+
+    pub fn traverse_hm(m: &HashMap<u128,indexer::WordBlock>, emit: bool)
     {
         for (k, v) in m.iter() {
             
+
+
             if emit
             {
                 println!("word: {} ({})",word_hash::unhash_word(*k), v.word_count);
+                //print_vec(&v.buffer);
             }
 
             let mut i = 0;
@@ -253,61 +265,35 @@
             println!("read {} word block bytes",bytes.len());
 
             
-
             let mut i = 0;
             let mut total_count = 0;
             while i<bytes.len() 
             {
-                let key_bytes = BigEndian::read_uint128(&bytes[i..i+16], 16);
+                let word_key = BigEndian::read_uint128(&bytes[i..i+16], 16);
                 i =  i + 16;
-                
-                match hm.get(&key_bytes)
+
+
+
+                if let Some(wb) = hm.get_mut(&word_key) 
                 {
-                    Some(v) => 
-                            v.buffer 
-                    None => panic!("key not found.")
+                    //println!("{}-{},{}",word_hash::unhash_word(word_key),wb.position,wb.capacity);
+
+                    wb.buffer.extend(&bytes[i..i+1+wb.position as usize]);
+                    i = i + wb.capacity as usize;
+                }
+                else
+                {
+                    panic!("word not found!");
                 }
 
-
-
-                let capacity = BigEndian::read_u32(&wadh_bytes[i..i+4]);
-                i =  i + 4;
-                let address = BigEndian::read_u32(&wadh_bytes[i..i+4]);
-                i =  i + 4;
-                let position = BigEndian::read_u32(&wadh_bytes[i..i+4]);
-                i =  i + 4;
-
-                hm.entry(key_bytes).or_insert_with(|| indexer::WordBlock {buffer:Vec::with_capacity(64),latest_doc_id:0,latest_index:0,word_count:0,capacity:capacity,address:address,position:position});
+                
                 total_count = total_count + 1;
             }
-
-
 
         }
 
 
         
-        //Now write wad_map to wad_file
-        /*
-        for (key, v) in &wad_map 
-        {
-            let mut key_bytes = [0; 16];
-            BigEndian::write_uint128(&mut key_bytes, *key, 16);
-            wadh.write_all(&key_bytes)?;
-
-            let mut capacity = [0; 4];
-            BigEndian::write_u32(&mut capacity, v.capacity);
-            wadh.write_all(&capacity)?;
-
-            let mut address = [0; 4];
-            BigEndian::write_u32(&mut address, v.address);
-            wadh.write_all(&address)?;
-
-            let mut position = [0; 4];
-            BigEndian::write_u32(&mut position, v.position);
-            wadh.write_all(&position)?;
-        }
-        */
         Ok(())
     }
 

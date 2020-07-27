@@ -348,6 +348,7 @@
             let mut hm2:HashMap<u128,WordBlock> = HashMap::new();
             indexer_diagnostics::load_hm(wad_file, word_block, &mut hm2);
 
+            indexer_diagnostics::traverse_hm(&hm2, false);
 
             //list_top_64(& hm);
     
