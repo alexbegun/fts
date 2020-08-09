@@ -325,7 +325,7 @@
     }
 
 
-    pub fn index_files(source_path:&'static str, common_word_path:&'static str)
+    pub fn index_files(wad_file:&'static str, word_block:&'static str, source_path:&'static str, common_word_path:&'static str)
     {
         let worker_count = 1;
 
@@ -339,9 +339,7 @@
             println!("time: {:?} count:{:?}", e,counts);
             indexer_diagnostics::traverse_hm(&hm, false);
 
-            let wad_file = "C:\\Dev\\rust\\fts\\data\\wad.bin";
-            let word_block = "C:\\Dev\\rust\\fts\\data\\wordblock.bin";
-            
+           
             index_writer::write_new(wad_file ,word_block, &hm,50);
 
 

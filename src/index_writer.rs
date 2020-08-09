@@ -48,10 +48,101 @@ fn compute_capacity(block_length: u32, fill_factor: u8) -> u32
 }
 
 
-pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::WordBlock>,  fill_factor: u8)-> io::Result<()>
+
+
+
+
+pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::WordBlock>,  fill_factor: u8)-> io::Result<()>
 {
 
-    //let mut wad_map:BTreeMap<u128,WadValue> = build_wad(hm, fill_factor);
+    let mut main_hm:HashMap<u128,indexer::WordBlock> = HashMap::new();
+
+    //first read existing wad file and put it into main_hm
+    {
+        let mut wadh = OpenOptions::new()
+        .read(true)
+        .open(wad_file)?;
+
+        let mut wadh_bytes =  Vec::new();
+        wadh.read_to_end(&mut wadh_bytes)?;
+
+        println!("read {} wad bytes from existing wad file.",wadh_bytes.len());
+
+        let mut i = 0;
+        while i<wadh_bytes.len() 
+        {
+            let key_bytes = BigEndian::read_uint128(&wadh_bytes[i..i+16], 16);
+            i =  i + 16;
+            let capacity = BigEndian::read_u32(&wadh_bytes[i..i+4]);
+            i =  i + 4;
+            let address = BigEndian::read_u32(&wadh_bytes[i..i+4]);
+            i =  i + 4;
+            let position = BigEndian::read_u32(&wadh_bytes[i..i+4]);
+            i =  i + 4;
+
+            main_hm.entry(key_bytes).or_insert_with(|| indexer::WordBlock {buffer:Vec::with_capacity(64),latest_doc_id:0,latest_index:0,word_count:0,capacity:capacity,address:address,position:position});
+        }
+
+    }
+
+
+    //now open block file and start reading chunks from it.
+    {
+     
+        let mut bfh = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(block_file)?;
+
+        let mut count = 0;
+        loop
+        {
+
+            //First read the word 
+            let mut word_bytes = [0; 16];
+            let word_bytes_read = bfh.read(&mut word_bytes)?;
+            if word_bytes_read == 0 //Get out if nothing read
+            {
+                break;
+            }
+            let word_key = BigEndian::read_uint128(&word_bytes, 16);
+
+            //now get the WordBlock info from main_hm
+            if let Some(wb) = hm.get(&word_key) 
+            {
+                match hm.get(&word_key) 
+                {
+                    //now check if this word is found in new hash map
+                    Some(v) => merge_block(&mut bfh, wb, v), 
+                    //if not then fast forward to next word block
+                    None => skip_block(&mut bfh, wb.capacity as usize)
+                }
+            }
+            else
+            {
+                panic!("key not found.");
+            }
+        }
+
+    }
+    Ok(())
+}
+
+fn merge_block(bfh:&mut std::fs::File, old_block: & indexer::WordBlock, new_block: & indexer::WordBlock )
+{
+
+}
+
+fn skip_block(bfh:&mut std::fs::File, size: usize)
+{
+    let mut pad_buffer:Vec<u8> = Vec::with_capacity(size);
+    pad_buffer.resize(size, 0);
+    bfh.read(&mut pad_buffer);
+}
+
+
+pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::WordBlock>,  fill_factor: u8)-> io::Result<()>
+{
     let mut wad_map:BTreeMap<u128,WadValue> = BTreeMap::new();
     let mut address = 0;
     let mut bfh = OpenOptions::new()
@@ -69,13 +160,9 @@ pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::W
         address = address + cap;
         wad_map.insert(*key, wv);
         
-        
         let mut key_bytes = [0; 16];
         BigEndian::write_uint128(&mut key_bytes, *key, 16);
         bfh.write_all(&key_bytes)?; //write key, because this will help later with retrieval
-
-        
-
         bfh.write_all(&v.buffer)?; //write block
        
         let pad_size = (cap - len) as usize;
