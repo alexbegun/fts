@@ -340,7 +340,10 @@
             indexer_diagnostics::traverse_hm(&hm, false);
 
            
-            index_writer::write_new(wad_file ,word_block, &hm,50);
+            //index_writer::write_new(wad_file ,word_block, &hm,50);
+
+            index_writer::write_existing(wad_file ,word_block, &hm,50);
+
 
 
             let mut hm2:HashMap<u128,WordBlock> = HashMap::new();

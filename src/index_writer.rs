@@ -3,7 +3,7 @@ use std::fs::OpenOptions;
 
 use std::collections::HashMap;
 use crate::indexer;
-
+use crate::word_hash;
 
 use std::io::{self, prelude::*};
 use std::collections::BTreeMap;
@@ -108,14 +108,14 @@ pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,index
             let word_key = BigEndian::read_uint128(&word_bytes, 16);
 
             //now get the WordBlock info from main_hm
-            if let Some(wb) = hm.get(&word_key) 
+            if let Some(wb) = main_hm.get(&word_key) 
             {
                 match hm.get(&word_key) 
                 {
                     //now check if this word is found in new hash map
-                    Some(v) => merge_block(&mut bfh, wb, v), 
+                    Some(v) => merge_block(word_key, &mut bfh, wb, v), 
                     //if not then fast forward to next word block
-                    None => skip_block(&mut bfh, wb.capacity as usize)
+                    None => skip_block(word_key, &mut bfh, wb.capacity as usize)
                 }
             }
             else
@@ -128,13 +128,17 @@ pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,index
     Ok(())
 }
 
-fn merge_block(bfh:&mut std::fs::File, old_block: & indexer::WordBlock, new_block: & indexer::WordBlock )
+fn merge_block(word_key:u128, bfh:&mut std::fs::File, old_block: & indexer::WordBlock, new_block: & indexer::WordBlock )
 {
+    println!("mergin word: {} ",word_hash::unhash_word(word_key));
 
+    skip_block(word_key, bfh, old_block.capacity as usize);
 }
 
-fn skip_block(bfh:&mut std::fs::File, size: usize)
+fn skip_block(word_key:u128, bfh:&mut std::fs::File, size: usize)
 {
+    println!("skipping word: {} ",word_hash::unhash_word(word_key));
+
     let mut pad_buffer:Vec<u8> = Vec::with_capacity(size);
     pad_buffer.resize(size, 0);
     bfh.read(&mut pad_buffer);
