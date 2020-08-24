@@ -2,6 +2,7 @@ use byteorder::{ByteOrder, BigEndian};
 use std::fs::OpenOptions;
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use crate::indexer;
 use crate::word_hash;
 
@@ -94,7 +95,8 @@ pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,index
         .write(true)
         .open(block_file)?;
 
-        let mut count = 0;
+        let mut existing_words_set:HashSet<u128> = HashSet::new();
+
         loop
         {
 
@@ -113,7 +115,7 @@ pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,index
                 match hm.get(&word_key) 
                 {
                     //now check if this word is found in new hash map
-                    Some(v) => merge_block(word_key, &mut bfh, wb, v), 
+                    Some(v) => merge_block(word_key,&mut existing_words_set, &mut bfh, wb, v), 
                     //if not then fast forward to next word block
                     None => skip_block(word_key, &mut bfh, wb.capacity as usize)
                 }
@@ -125,11 +127,27 @@ pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,index
         }
 
     }
+
+    //After this append all new words, that is words that are not found in the main_hm
+    {
+        let key_v = hm.keys().cloned().collect::<Vec<u128>>();
+
+        for key in key_v 
+        {
+            if !main_hm.contains_key(&key) 
+            {
+                //here write to block file
+                //write to wad
+            }
+        }
+    }
+
     Ok(())
 }
 
-fn merge_block(word_key:u128, bfh:&mut std::fs::File, old_block: & indexer::WordBlock, new_block: & indexer::WordBlock )
+fn merge_block(word_key:u128, existing_words_set: &mut HashSet<u128>, bfh:&mut std::fs::File, old_block: & indexer::WordBlock, new_block: & indexer::WordBlock )
 {
+    existing_words_set.insert(word_key);
     println!("mergin word: {} ",word_hash::unhash_word(word_key));
 
     skip_block(word_key, bfh, old_block.capacity as usize);
