@@ -1,4 +1,4 @@
-    use std::collections::HashMap;
+use std::collections::HashMap;
     use crate::indexer;
     use crate::word_hash;
 

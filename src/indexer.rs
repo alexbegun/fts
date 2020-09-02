@@ -337,7 +337,7 @@
 
             let e = s.elapsed();
             println!("time: {:?} count:{:?}", e,counts);
-            indexer_diagnostics::traverse_hm(&hm, false);
+            //indexer_diagnostics::traverse_hm(&hm, true);
 
            
             //index_writer::write_new(wad_file ,word_block, &hm,50);
@@ -349,7 +349,7 @@
             let mut hm2:HashMap<u128,WordBlock> = HashMap::new();
             indexer_diagnostics::load_hm(wad_file, word_block, &mut hm2);
 
-            indexer_diagnostics::traverse_hm(&hm2, false);
+            indexer_diagnostics::traverse_hm(&hm2, true);
 
             //list_top_64(& hm);
     

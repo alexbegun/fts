@@ -1,3 +1,4 @@
+
 use byteorder::{ByteOrder, BigEndian};
 use std::fs::OpenOptions;
 
@@ -6,6 +7,7 @@ use std::collections::HashSet;
 use crate::indexer;
 use crate::word_hash;
 
+use std::io::SeekFrom;
 use std::io::{self, prelude::*};
 use std::collections::BTreeMap;
 
@@ -56,7 +58,9 @@ fn compute_capacity(block_length: u32, fill_factor: u8) -> u32
 pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::WordBlock>,  fill_factor: u8)-> io::Result<()>
 {
 
-    let mut main_hm:HashMap<u128,indexer::WordBlock> = HashMap::new();
+    //let mut main_hm:HashMap<u128,indexer::WordBlock> = HashMap::new();
+    let mut main_wad_map:BTreeMap<u128,WadValue> = BTreeMap::new();
+  
 
     //first read existing wad file and put it into main_hm
     {
@@ -81,7 +85,10 @@ pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,index
             let position = BigEndian::read_u32(&wadh_bytes[i..i+4]);
             i =  i + 4;
 
-            main_hm.entry(key_bytes).or_insert_with(|| indexer::WordBlock {buffer:Vec::with_capacity(64),latest_doc_id:0,latest_index:0,word_count:0,capacity:capacity,address:address,position:position});
+            let wv = WadValue {capacity:capacity,position:position, address:address};
+             
+            //main_hm.entry(key_bytes).or_insert_with(|| indexer::WordBlock {buffer:Vec::with_capacity(64),latest_doc_id:0,latest_index:0,word_count:0,capacity:capacity,address:address,position:position});
+            main_wad_map.insert(key_bytes, wv);
         }
 
     }
@@ -110,7 +117,7 @@ pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,index
             let word_key = BigEndian::read_uint128(&word_bytes, 16);
 
             //now get the WordBlock info from main_hm
-            if let Some(wb) = main_hm.get(&word_key) 
+            if let Some(wb) = main_wad_map.get(&word_key) 
             {
                 match hm.get(&word_key) 
                 {
@@ -132,25 +139,59 @@ pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,index
     {
         let key_v = hm.keys().cloned().collect::<Vec<u128>>();
 
+        let mut bfh = OpenOptions::new()
+        .append(true)
+        .open(block_file)?;
+
+        let mut address = 0;
+ 
+        let pos = bfh.seek(SeekFrom::End(0))?;
+        println!("end position is: {}",pos);
+
         for key in key_v 
         {
-            if !main_hm.contains_key(&key) 
+            if !main_wad_map.contains_key(&key) 
             {
-                //here write to block file
-                //write to wad
+
+                println!("appending word: {} ",word_hash::unhash_word(key));
+
+                //Update the main_wad_map
+                let wb = hm.get(&key).unwrap();
+                let len = wb.buffer.len() as u32;
+                let cap = compute_capacity(len,fill_factor);
+                let wv = WadValue {capacity:cap,position:len - 1, address:address};
+                address = address + cap;
+                main_wad_map.insert(key, wv);
+
+
+                //Write to block file
+                let mut key_bytes = [0; 16];
+                BigEndian::write_uint128(&mut key_bytes, key, 16);
+                bfh.write_all(&key_bytes)?; //write key, because this will help later with retrieval
+                bfh.write_all(&wb.buffer)?; //write block
+               
+                let pad_size = (cap - len) as usize;
+                let mut pad_buffer:Vec<u8> = Vec::with_capacity(pad_size);
+                pad_buffer.resize(pad_size, 0);
+                bfh.write_all(&pad_buffer)?; //write padding
             }
         }
     }
 
+    //Last Step is to rewrite the wad file
+    rewrite_wad(wad_file, main_wad_map)?;
+
     Ok(())
 }
 
-fn merge_block(word_key:u128, existing_words_set: &mut HashSet<u128>, bfh:&mut std::fs::File, old_block: & indexer::WordBlock, new_block: & indexer::WordBlock )
+fn merge_block(word_key:u128, existing_words_set: &mut HashSet<u128>, bfh:&mut std::fs::File, old_wad: & WadValue, new_block: & indexer::WordBlock )
 {
+    //TODO: Need to read Old Block here before merging
+
     existing_words_set.insert(word_key);
     println!("mergin word: {} ",word_hash::unhash_word(word_key));
 
-    skip_block(word_key, bfh, old_block.capacity as usize);
+    skip_block(word_key, bfh, old_wad.capacity as usize);
 }
 
 fn skip_block(word_key:u128, bfh:&mut std::fs::File, size: usize)
@@ -162,6 +203,43 @@ fn skip_block(word_key:u128, bfh:&mut std::fs::File, size: usize)
     bfh.read(&mut pad_buffer);
 }
 
+
+pub fn rewrite_wad(wad_file: &str, wad_map:BTreeMap<u128,WadValue>)-> io::Result<()>
+{
+    let mut wadh = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(wad_file).unwrap();
+
+    let mut total_count = 0;
+    //Now write wad_map to wad_filegi
+    for (key, v) in &wad_map 
+    {
+        println!("writing wad word: {} ",word_hash::unhash_word(*key));
+
+        let mut key_bytes = [0; 16];
+        BigEndian::write_uint128(&mut key_bytes, *key, 16);
+        wadh.write_all(&key_bytes)?;
+
+        let mut capacity = [0; 4];
+        BigEndian::write_u32(&mut capacity, v.capacity);
+        wadh.write_all(&capacity)?;
+
+        let mut address = [0; 4];
+        BigEndian::write_u32(&mut address, v.address);
+        wadh.write_all(&address)?;
+
+        let mut position = [0; 4];
+        BigEndian::write_u32(&mut position, v.position);
+        wadh.write_all(&position)?;
+
+        total_count = total_count + 1;
+    }
+
+    println!("total word count written: {}", total_count);
+
+    Ok(())
+}
 
 pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::WordBlock>,  fill_factor: u8)-> io::Result<()>
 {
@@ -192,39 +270,9 @@ pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::W
         pad_buffer.resize(pad_size, 0);
 
         bfh.write_all(&pad_buffer)?; //write padding
-
     }
 
-    let mut wadh = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(wad_file).unwrap();
-
-    let mut total_count = 0;
-    //Now write wad_map to wad_filegi
-    for (key, v) in &wad_map 
-    {
-        let mut key_bytes = [0; 16];
-        BigEndian::write_uint128(&mut key_bytes, *key, 16);
-        wadh.write_all(&key_bytes)?;
-
-        let mut capacity = [0; 4];
-        BigEndian::write_u32(&mut capacity, v.capacity);
-        wadh.write_all(&capacity)?;
-
-        let mut address = [0; 4];
-        BigEndian::write_u32(&mut address, v.address);
-        wadh.write_all(&address)?;
-
-        let mut position = [0; 4];
-        BigEndian::write_u32(&mut position, v.position);
-        wadh.write_all(&position)?;
-
-        total_count = total_count + 1;
-    }
-
-    println!("total word count written: {}", total_count);
+    rewrite_wad(wad_file,wad_map)?;
 
     Ok(())
 }
