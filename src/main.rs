@@ -6,7 +6,28 @@ mod indexer_diagnostics;
 
 use std::io::{self};
 
+
+fn tuple_test() -> (i32,i32)
+{
+    (0,1)
+}
+
 fn main()-> io::Result<()>  {
+
+    let a = 11;
+    let b = 12;
+ 
+    println!("{}, {}",a,b);
+ 
+    let (mut a,mut b) = tuple_test();
+
+    println!("{}, {}",a,b);
+
+    let (mut a,mut b) = tuple_test();
+
+    Ok(()) 
+
+    /*
     //let path: &'static str = "C:\\Dev\\books\\samples";
     let path: &'static str = "C:\\Dev\\rust\\fts\\data\\samples";
     let common_word_path: &'static str = "C:\\Dev\\rust\\fts\\src\\top64.txt";
@@ -22,4 +43,5 @@ fn main()-> io::Result<()>  {
     //println!("'{}'", w);
 
     Ok(())        
+    */
 }

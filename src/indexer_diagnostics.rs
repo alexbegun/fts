@@ -24,6 +24,11 @@ use std::collections::HashMap;
     }
 
 
+    struct DocPos {
+        doc_id:u32,
+        init_pos:u32,
+        offset:u32
+    }
 
 
 
@@ -32,32 +37,27 @@ use std::collections::HashMap;
     {
 
         let mut output =  Vec::new();
-
-        let  (mut left_doc_id, mut s_left_pos, mut left_pos) = read_doc_id_data(0,left,true);
-        let  (mut right_doc_id, mut s_right_pos, mut right_pos) = read_doc_id_data(0,right,true);
-        
-        while left_doc_id!=0 && right_doc_id!=0
+        let mut left_doc_pos = read_doc_id_data(0,left,true);
+        let mut right_doc_pos = read_doc_id_data(0,right,true);
+        while left_doc_pos.doc_id!=0 && right_doc_pos.doc_id!=0
         {
-            if left_doc_id == right_doc_id
+            if left_doc_pos.doc_id == right_doc_pos.doc_id
             {
-                write_doc_id_data(right, &mut output, s_right_pos, right_pos);
-
-                let  (mut left_doc_id, mut s_left_pos, mut left_pos) = read_doc_id_data(left_pos,left,true);
-                let  (mut right_doc_id, mut s_right_pos, mut right_pos) = read_doc_id_data(right_pos,right,true);
+                write_doc_id_data(right, &mut output, right_doc_pos.init_pos, right_doc_pos.offset);
+                left_doc_pos = read_doc_id_data(left_doc_pos.offset,left,true);
+                right_doc_pos = read_doc_id_data(right_doc_pos.offset,right,true);
             }
-            else if left_doc_id < right_doc_id
+            else if left_doc_pos.doc_id < right_doc_pos.doc_id
             {
-                write_doc_id_data(left, &mut output, s_left_pos, left_pos);
-                let  (mut left_doc_id, mut s_left_pos, mut left_pos) = read_doc_id_data(left_pos,left,true);
+                write_doc_id_data(left, &mut output, left_doc_pos.init_pos, left_doc_pos.offset);
+                left_doc_pos = read_doc_id_data(left_doc_pos.offset,left,true);
             }
             else // if left_doc_id > right_doc_id
             {
-                write_doc_id_data(right, &mut output, s_right_pos, right_pos);
-                let  (mut right_doc_id, mut s_right_pos, mut right_pos) = read_doc_id_data(right_pos,right,true);
+                write_doc_id_data(right, &mut output, right_doc_pos.init_pos, right_doc_pos.offset);
+                right_doc_pos = read_doc_id_data(right_doc_pos.offset,right,true);
             }
          }
-
-
         output
     }
 
@@ -68,14 +68,14 @@ use std::collections::HashMap;
 
 
     //returns a tuple containing docId, old offset, new offset
-    fn read_doc_id_data(offset: u32, block_data: &Vec<u8>, emit: bool) -> (u32,u32,u32)
+    fn read_doc_id_data(offset: u32, block_data: &Vec<u8>, emit: bool) -> (DocPos)
     {
         let mut i = offset as usize;
           
         //Is it time to leave?
         if i >= block_data.len()
         {
-            return (0,0,0);
+            return DocPos{doc_id:0,init_pos:0, offset: 0};
         }
 
         let doc_id = unsafe { std::mem::transmute::<[u8; 4], u32>([block_data[i],block_data[i + 1], block_data[i + 2],block_data[i + 3]]) }.to_be();
@@ -105,7 +105,7 @@ use std::collections::HashMap;
                 {
                     println!(" end of doc.");
                 }
-                return (doc_id, offset, i as u32);
+                return DocPos{doc_id:doc_id,init_pos:offset, offset: i as u32};
             }
             else 
             {
@@ -487,8 +487,6 @@ use std::collections::HashMap;
             {
                 let word_key = BigEndian::read_uint128(&bytes[i..i+16], 16);
                 i =  i + 16;
-
-
 
                 if let Some(wb) = hm.get_mut(&word_key) 
                 {

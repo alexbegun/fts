@@ -139,7 +139,6 @@ fn update_wad_map_and_block_file(wad_map: &mut BTreeMap<u128,WadValue>, block_fi
     .write(true)
     .open(block_file)?;
 
-    let mut existing_words_set:HashSet<u128> = HashSet::new();
     loop
     {
         //First read the word 
@@ -157,7 +156,7 @@ fn update_wad_map_and_block_file(wad_map: &mut BTreeMap<u128,WadValue>, block_fi
             match hm.get(&word_key) 
             {
                 //now check if this word is found in new hash map
-                Some(v) => merge_block(word_key,&mut existing_words_set, &mut bfh, wb, v), 
+                Some(v) => merge_block(word_key, &mut bfh, wb, v), 
                 //if not then fast forward to next word block
                 None => skip_block(word_key, &mut bfh, wb.capacity as usize)
             }
@@ -172,28 +171,25 @@ fn update_wad_map_and_block_file(wad_map: &mut BTreeMap<u128,WadValue>, block_fi
 }
 
 
-pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::WordBlock>,  fill_factor: u8)-> io::Result<()>
+fn read_block(wad_value: & WadValue)
 {
-    let mut wad_map:BTreeMap<u128,WadValue> = BTreeMap::new();
-    load_wad_map(wad_file,&mut wad_map)?;
+    let mut i = 0;
+    let mut total_count = 0;
 
-    //now open block file and start reading chunks from it.
-    update_wad_map_and_block_file(&mut wad_map,block_file,hm,fill_factor)?;
-
-    //After this append all new words, that is words that are not found in the main_hm
-    append_wad_map_and_block_file(&mut wad_map,block_file,hm,fill_factor)?;
-
-    //Last Step is to rewrite the wad file
-    rewrite_wad(wad_file, wad_map)?;
-
-    Ok(())
+    
 }
 
-fn merge_block(word_key:u128, existing_words_set: &mut HashSet<u128>, bfh:&mut std::fs::File, old_wad: & WadValue, new_block: & indexer::WordBlock )
-{
-    //TODO: Need to read Old Block here before merging
 
-    existing_words_set.insert(word_key);
+//Merges the old block with the new block. and if possible overwrites it in the Block File, if too big then append to the end of block file.
+fn merge_block(word_key:u128, bfh:&mut std::fs::File, old_wad: & WadValue, new_block: & indexer::WordBlock )
+{
+    let mut old_block_buffer:Vec<u8> = Vec::with_capacity(old_wad.capacity as usize);
+
+    //TODO: Need to read Old Block here before merging
+    let _ = bfh.read(&mut old_block_buffer);
+
+    
+    
     println!("mergin word: {} ",word_hash::unhash_word(word_key));
 
     skip_block(word_key, bfh, old_wad.capacity as usize);
@@ -205,8 +201,27 @@ fn skip_block(word_key:u128, bfh:&mut std::fs::File, size: usize)
 
     let mut pad_buffer:Vec<u8> = Vec::with_capacity(size);
     pad_buffer.resize(size, 0);
-    bfh.read(&mut pad_buffer);
+    let _ = bfh.read(&mut pad_buffer);
 }
+
+
+pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::WordBlock>,  fill_factor: u8)-> io::Result<()>
+{
+    let mut wad_map:BTreeMap<u128,WadValue> = BTreeMap::new();
+    load_wad_map(wad_file,&mut wad_map)?;
+
+    //now open block file and start reading chunks from it.
+    update_wad_map_and_block_file(&mut wad_map,block_file,hm,fill_factor)?;
+
+    //After this append all new words, that is words that are not found in the wad map
+    append_wad_map_and_block_file(&mut wad_map,block_file,hm,fill_factor)?;
+
+    //Last Step is to rewrite the wad file
+    rewrite_wad(wad_file, wad_map)?;
+
+    Ok(())
+}
+
 
 
 pub fn rewrite_wad(wad_file: &str, wad_map:BTreeMap<u128,WadValue>)-> io::Result<()>
