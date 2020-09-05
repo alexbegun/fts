@@ -150,12 +150,14 @@ fn update_wad_map_and_block_file(wad_map: &mut BTreeMap<u128,WadValue>, block_fi
         }
         let word_key = BigEndian::read_uint128(&word_bytes, 16);
 
+       
         //now get the WordBlock info from main_hm
         if let Some(wb) = wad_map.get(&word_key) 
         {
             match hm.get(&word_key)
             {
                 //now check if this word is found in new hash map
+                //TODO: Also make sure that this word has the correct address as the wad_map
                 Some(v) => merge_block(word_key, &mut bfh, overflow_map, wb, v)?, 
                 //if not then fast forward to next word block
                 None => skip_block(word_key, &mut bfh, wb.capacity as usize)?
@@ -180,9 +182,11 @@ fn merge_block(word_key:u128, bfh:&mut std::fs::File, overflow_map: &mut HashMap
 
     //remember previous position
     let prev_pos = bfh.seek(SeekFrom::Current(0))?;
-   
 
-    let _ = bfh.read(&mut old_block_buffer);
+    
+    bfh.take(old_wad.capacity as u64).read_to_end(&mut old_block_buffer)?;
+
+
     old_block_buffer.truncate((old_wad.position + 1) as usize); //Truncate the vector to remove padding
 
     let merged_bytes = merge_block_data(&old_block_buffer, &new_block.buffer);
@@ -226,6 +230,14 @@ pub fn merge_block_data(left: &Vec<u8>, right: &Vec<u8>) -> Vec<u8>
     let mut output =  Vec::new();
     let mut left_doc_pos = read_doc_id_data(0,left,true);
     let mut right_doc_pos = read_doc_id_data(0,right,true);
+
+    println!("left vec size :{}",left.len());
+    println!("right vec size :{}",right.len());
+
+
+    println!("left doc:{}",left_doc_pos.doc_id);
+    println!("right doc:{}",left_doc_pos.doc_id);
+
     while left_doc_pos.doc_id!=0 && right_doc_pos.doc_id!=0
     {
         if left_doc_pos.doc_id == right_doc_pos.doc_id
@@ -425,9 +437,11 @@ fn skip_block(word_key:u128, bfh:&mut std::fs::File, size: usize)-> io::Result<(
 {
     println!("skipping word: {} ",word_hash::unhash_word(word_key));
 
-    let mut pad_buffer:Vec<u8> = Vec::with_capacity(size);
-    pad_buffer.resize(size, 0);
-    let _ = bfh.read(&mut pad_buffer);
+    //let mut pad_buffer:Vec<u8> = Vec::with_capacity(size);
+    //pad_buffer.resize(size, 0);
+    //let _ = bfh.read_exact(&mut pad_buffer);
+    let _ = bfh.seek(SeekFrom::Current(size as i64));
+    
     Ok(())
 }
 
@@ -492,6 +506,11 @@ pub fn rewrite_wad(wad_file: &str, wad_map:BTreeMap<u128,WadValue>)-> io::Result
 
 pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::WordBlock>,  fill_factor: u8)-> io::Result<()>
 {
+    
+    std::fs::remove_file(wad_file).ok();
+    std::fs::remove_file(block_file).ok();
+
+
     let mut wad_map:BTreeMap<u128,WadValue> = BTreeMap::new();
     let mut address = 0;
     let mut bfh = OpenOptions::new()

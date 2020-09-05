@@ -339,11 +339,15 @@
             println!("time: {:?} count:{:?}", e,counts);
             //indexer_diagnostics::traverse_hm(&hm, true);
 
+            println!("....");
            
-            //index_writer::write_new(wad_file ,word_block, &hm,50);
+            index_writer::write_new(wad_file ,word_block, &hm,25);
 
-            index_writer::write_existing(wad_file ,word_block, &hm,50);
-
+            println!("....");
+          
+            index_writer::write_existing(wad_file ,word_block, &hm,25);
+            
+            println!("....");
 
 
             let mut hm2:HashMap<u128,WordBlock> = HashMap::new();
