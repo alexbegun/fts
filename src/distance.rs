@@ -44,7 +44,7 @@ pub fn find_smallest_distance(vec:& Vec<u128>) ->(u8,bool)
                 let window_mask = u128::MAX<<from>>from>>to<<to;
                 //println!("window_mask {:0128b}",window_mask);
 
-                let mut prev_p:u128 = 0;
+                let mut prev_p:u128 = u128::MAX;
                 let mut in_order = true;
                 let mut is_hit = true;
 
@@ -57,7 +57,7 @@ pub fn find_smallest_distance(vec:& Vec<u128>) ->(u8,bool)
                         break;
                     }
 
-                    if p & window_mask < prev_p
+                    if p & window_mask > prev_p
                     {
                         in_order = false;
                     }
@@ -73,6 +73,7 @@ pub fn find_smallest_distance(vec:& Vec<u128>) ->(u8,bool)
                     {
                         smallest_distance = distance;
                         smallest_in_order = in_order;
+                        //println!("smallest proximity from:{} to: {} ordered:{}",proximity_window[0],proximity_window[vec.len()-1], in_order);
                     }
                     else if distance == smallest_distance && in_order //make sure that if the distances are the same and in_order then the smallest_in_order is set 
                     {
