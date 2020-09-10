@@ -152,7 +152,7 @@ fn update_wad_map_and_block_file(wad_map: &mut BTreeMap<u128,WadValue>, block_fi
 
        
         //now get the WordBlock info from main_hm
-        if let Some(wb) = wad_map.get(&word_key) 
+        if let Some(wb) = wad_map.get_mut(&word_key) 
         {
             match hm.get(&word_key)
             {
@@ -176,34 +176,50 @@ fn update_wad_map_and_block_file(wad_map: &mut BTreeMap<u128,WadValue>, block_fi
 
 
 //Merges the old block with the new block. and if possible overwrites it in the Block File, if too big then append to the end of block file.
-fn merge_block(word_key:u128, bfh:&mut std::fs::File, overflow_map: &mut HashMap<u128,Vec<u8>>, old_wad: & WadValue, new_block: & indexer::WordBlock )-> io::Result<()>
+fn merge_block(word_key:u128, bfh:&mut std::fs::File, overflow_map: &mut HashMap<u128,Vec<u8>>, wad_entry: &mut WadValue, new_block: & indexer::WordBlock )-> io::Result<()>
 {
-    let mut old_block_buffer:Vec<u8> = Vec::with_capacity(old_wad.capacity as usize);
+    let mut old_block_buffer:Vec<u8> = Vec::with_capacity(wad_entry.capacity as usize);
 
     //remember previous position
     let prev_pos = bfh.seek(SeekFrom::Current(0))?;
 
-    
-    bfh.take(old_wad.capacity as u64).read_to_end(&mut old_block_buffer)?;
+    println!("pos prev: {} ",prev_pos);
+     
+    bfh.take(wad_entry.capacity as u64).read_to_end(&mut old_block_buffer)?;
 
+    let pos = bfh.seek(SeekFrom::Current(0))?;
+    println!("pos: {} ",pos);
 
-    old_block_buffer.truncate((old_wad.position + 1) as usize); //Truncate the vector to remove padding
+    old_block_buffer.truncate((wad_entry.position + 1) as usize); //Truncate the vector to remove padding
 
     let merged_bytes = merge_block_data(&old_block_buffer, &new_block.buffer);
 
     //check to see to make sure the merged block is less than the old capacity
-    if merged_bytes.len() < old_wad.capacity as usize
+    if merged_bytes.len() < wad_entry.capacity as usize
     {
         println!("merging word: {} ",word_hash::unhash_word(word_key));
         //rewind to previous position
         bfh.seek(SeekFrom::Start(prev_pos))?;
+        let rewound_pos = bfh.seek(SeekFrom::Current(0))?;
+        println!("rewound_pos: {} ",rewound_pos);
+
+
+        let merged_bytes_len = merged_bytes.len();
+        println!("merged_bytes_len: {} ",merged_bytes_len);
+
+
+        let pad_size = wad_entry.capacity as usize - merged_bytes.len();
+        println!("pad_size: {} ",pad_size);
+
         bfh.write_all(&merged_bytes)?; //write block
       
-        let pad_size = old_wad.capacity as usize - merged_bytes.len();
+        let pad_size = wad_entry.capacity as usize - merged_bytes.len();
         let mut pad_buffer:Vec<u8> = Vec::with_capacity(pad_size);
         pad_buffer.resize(pad_size, 0);
         bfh.write_all(&pad_buffer)?; //write padding
 
+        //Update wad entry
+        wad_entry.position = merged_bytes_len as u32 - 1;
     }
     else
     {
@@ -234,30 +250,32 @@ pub fn merge_block_data(left: &Vec<u8>, right: &Vec<u8>) -> Vec<u8>
     println!("left vec size :{}",left.len());
     println!("right vec size :{}",right.len());
 
-
-    println!("left doc:{}",left_doc_pos.doc_id);
-    println!("right doc:{}",left_doc_pos.doc_id);
-
     while left_doc_pos.doc_id!=0 && right_doc_pos.doc_id!=0
     {
         if left_doc_pos.doc_id == right_doc_pos.doc_id
         {
+            println!("doc ids are identical");
+
             write_doc_id_data(right, &mut output, right_doc_pos.init_pos, right_doc_pos.offset);
             left_doc_pos = read_doc_id_data(left_doc_pos.offset,left,true);
             right_doc_pos = read_doc_id_data(right_doc_pos.offset,right,true);
         }
         else if left_doc_pos.doc_id < right_doc_pos.doc_id
         {
+            println!("right doc id is bigger");
             write_doc_id_data(left, &mut output, left_doc_pos.init_pos, left_doc_pos.offset);
             left_doc_pos = read_doc_id_data(left_doc_pos.offset,left,true);
         }
         else // if left_doc_id > right_doc_id
         {
+            println!("left doc id is bigger");
             write_doc_id_data(right, &mut output, right_doc_pos.init_pos, right_doc_pos.offset);
             right_doc_pos = read_doc_id_data(right_doc_pos.offset,right,true);
         }
      }
-    output
+
+     println!("output length is {}",output.len());
+     output
 }
 
 fn write_doc_id_data(source: & Vec<u8>, dest: &mut Vec<u8>, start_pos: u32, end_pos: u32)

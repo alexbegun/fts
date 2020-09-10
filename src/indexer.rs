@@ -341,7 +341,7 @@
 
             println!("....");
            
-            index_writer::write_new(wad_file ,word_block, &hm,25);
+            //index_writer::write_new(wad_file ,word_block, &hm,25);
 
             println!("....");
           
