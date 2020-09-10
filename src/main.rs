@@ -14,8 +14,9 @@ fn test_dist()
 
     vec.push(0b_0001_0001_0000_0000);
     vec.push(0b_1000_0100_0010_0000);
-    vec.push(0b_0100_1000_0000_0101);
-
+    vec.push(0b_0000_0000_0000_1001);
+    vec.push(0b_0010_0000_1000_0000);
+  
     let (d,o) = distance::find_smallest_distance(&vec);
     println!("smallest distance: {} is ordered: {}",d,o);
 
