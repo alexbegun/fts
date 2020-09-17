@@ -3,7 +3,6 @@ use byteorder::{ByteOrder, BigEndian};
 use std::fs::OpenOptions;
 
 use std::collections::HashMap;
-use std::collections::HashSet;
 use crate::indexer;
 use crate::word_hash;
 
@@ -496,7 +495,7 @@ pub fn rewrite_wad(wad_file: &str, wad_map:BTreeMap<u128,WadValue>)-> io::Result
     //Now write wad_map to wad_filegi
     for (key, v) in &wad_map 
     {
-        println!("writing wad word: {} ",word_hash::unhash_word(*key));
+        //println!("writing wad word: {} ",word_hash::unhash_word(*key));
 
         let mut key_bytes = [0; 16];
         BigEndian::write_uint128(&mut key_bytes, *key, 16);
