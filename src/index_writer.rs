@@ -561,3 +561,48 @@ pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::W
 
     Ok(())
 }
+
+
+
+pub fn write_segment(wad_file: &str, segment_file: & str, hm:& HashMap<u128,indexer::WordBlock>)-> io::Result<()>
+{
+    
+    std::fs::remove_file(wad_file).ok();
+    std::fs::remove_file(segment_file).ok();
+
+
+    let mut wad_map:BTreeMap<u128,WadValue> = BTreeMap::new();
+    let mut address = 0;
+    let mut bfh = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(segment_file).unwrap();
+
+    //Write to block file and fill wad_map
+    for (key, v) in hm.iter() 
+    {
+        let len = v.buffer.len() as u32;
+        let cap = len; //compute_capacity(len,fill_factor);
+        let wv = WadValue {capacity:cap,position:len - 1, address:address};
+        address = address + cap;
+        wad_map.insert(*key, wv);
+        
+        let mut key_bytes = [0; 16];
+        BigEndian::write_uint128(&mut key_bytes, *key, 16);
+        bfh.write_all(&key_bytes)?; //write key, because this will help later with retrieval
+        bfh.write_all(&v.buffer)?; //write block
+       
+        /*
+        let pad_size = (cap - len) as usize;
+        let mut pad_buffer:Vec<u8> = Vec::with_capacity(pad_size);
+        pad_buffer.resize(pad_size, 0);
+
+        bfh.write_all(&pad_buffer)?; //write padding
+        */
+    }
+
+    rewrite_wad(wad_file,wad_map)?;
+
+    Ok(())
+}

@@ -2,6 +2,7 @@
     use crate::common_words;
     use crate::indexer_diagnostics;
     use crate::rocks_db;
+    use rocksdb::*;
     use crate::index_writer;
     
     use std::collections::HashMap;
@@ -16,6 +17,10 @@
     use std::hash::{Hash, Hasher};
     
     use rocksdb::{Options, DB, MergeOperands};
+
+    
+    use encoding_rs::WINDOWS_1252;
+    use encoding_rs_io::DecodeReaderBytesBuilder;
     
      //Main structure representing a Word Block
     pub struct WordBlock {
@@ -190,14 +195,13 @@
     }
 
 
-
-
     //Parses a particular file adding all word positions to WordBlocks.
     fn parse_file(doc_id: u32, file_name: &str, hm:&mut HashMap<u128,WordBlock>, com_words:& HashMap<u128, u8>) ->  io::Result<u32> {
-        let file = File::open(file_name)?;
-        let reader = BufReader::new(file);
+        let mut file = File::open(file_name)?;
+        let mut content = String::new();
+        // Read all the file content into a variable (ignoring the result of the operation).
+        file.read_to_string(&mut content)?;
         let mut word_index:u32 = 0;
-        
         //let mut l:u128;
         let mut w:u128;
         let mut r:u128 = 0;
@@ -209,75 +213,72 @@
         let mut lawh:u8;
 
         let mut word = String::with_capacity(25);
-            
-        for line in reader.lines() {
-            let st = line?;
         
-        
-            for c in st.chars() 
-            { 
-                if c.is_alphanumeric() || c=='\''
-                {
-                    word.push(c.to_ascii_lowercase());
-                }
-                else 
-                {
-                    if word.len() > 0
-                    {
-                        //l = w;
-                        lawh = cw;
-                        
-                        w = r;
-                        cw = rawh;
-                        
-                        r = word_hash::hash_word_to_u128(&word);
-                        rawh = common_words::map_to(com_words,&r);
-
-                        
-                        //only add if not a common word.
-                        if cw==nomatch && w!=0
-                        {
-                            add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm);
-                        }
-
-                        word.clear();
-                        word_index = word_index + 1;
-                    }
-                }
-            }
-            if word.len() > 0
+        for c in content.chars() 
+        { 
+            if c.is_alphanumeric() || c=='\''
             {
-                
-                //l = w;
-                lawh = cw;
-                
-                w = r;
-                cw = rawh;
-                
-                r = word_hash::hash_word_to_u128(&word);
-                rawh = common_words::map_to(com_words,&r);
-
-                //only add if not a common word.
-                if cw==255 && w!=0
+                word.push(c.to_ascii_lowercase());
+            }
+            else 
+            {
+                if word.len() > 0
                 {
-                    add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm);
+                    //l = w;
+                    lawh = cw;
+                    
+                    w = r;
+                    cw = rawh;
+                    
+                    r = word_hash::hash_word_to_u128(&word);
+                    rawh = common_words::map_to(com_words,&r);
+
+                    
+                    //only add if not a common word.
+                    if cw==nomatch && w!=0
+                    {
+                        add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm);
+                    }
+                    
+                    word.clear();
+                    word_index = word_index + 1;
                 }
-
-                //finally if at the end also add the last word if not common.println!
-                //only add if not a common word.
-                if rawh==255 && r!=0
-                {
-                    add_word_to_hash_map(doc_id,word_index, cw, r, nomatch, hm);
-                }
-
-                word.clear();
-
-                word_index = word_index + 1;
             }
         }
+        if word.len() > 0
+        {
+            
+            //l = w;
+            lawh = cw;
+            
+            w = r;
+            cw = rawh;
+            
+            r = word_hash::hash_word_to_u128(&word);
+            rawh = common_words::map_to(com_words,&r);
 
+            //only add if not a common word.
+            if cw==255 && w!=0
+            {
+                add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm);
+            }
+
+            //finally if at the end also add the last word if not common.println!
+            //only add if not a common word.
+            if rawh==255 && r!=0
+            {
+                add_word_to_hash_map(doc_id,word_index, cw, r, nomatch, hm);
+            }
+            word_index = word_index + 1;
+        }
+
+     
         Ok(word_index)
     }
+
+
+
+   
 
 
     fn get_hash_bucket(name: &str, collection_count: u32)->u32
@@ -322,7 +323,7 @@
         Ok(())
     }
 
-    fn index(source_path:&str, common_word_path:&str,collection_index:u32,collection_count: u32, worker_id:u8, worker_count:u8) -> HashMap<u128,WordBlock>
+    fn index(source_path:&str, common_word_path:&str,collection_index:u32,collection_count: u32, worker_id:u8, worker_count:u8, limit:u32) -> HashMap<u128,WordBlock>
     {
         //let full_path = Path::new(source_path).join(doc_collection.to_string()).display().to_string();
 
@@ -339,6 +340,11 @@
     
         for doc_file in doc_files 
         {
+            if limit !=0 && count >= limit
+            {
+                break;
+            }
+
             if doc_file == ""
             {
                 break;
@@ -354,6 +360,7 @@
 
             if (doc_id % worker_count as u32) as u8 == worker_id || worker_id == 255
             {
+                println!("parsing: {}", doc_file);
                 parse_file(doc_id, &doc_file, & mut hm, &com).expect("Unable to parse file.");
                 count = count + 1;
             }
@@ -408,7 +415,7 @@
     }
 
 
-    pub fn index_all(source_path:&'static str, common_word_path:&'static str, collection_count:u32, worker_count:u8)->io::Result<()>
+    pub fn index_all(source_path:&'static str, common_word_path:&'static str, collection_count:u32, worker_count:u8, limit:u32)->io::Result<()>
     {
         let s = Instant::now();
         
@@ -419,30 +426,61 @@
         directories.sort();
 
 
+        /*
+        let path = "C:\\Dev\\rust\\fts\\data\\rocks.db";
+        let mut opts = Options::default();
+        opts.prepare_for_bulk_load();
+        opts.optimize_level_style_compaction(2_000_000_000);
+        opts.optimize_universal_style_compaction(2_000_000_000);
+        opts.set_write_buffer_size(0x8000000);
+        opts.set_writable_file_max_buffer_size(1024 * 1024 * 8);
+        opts.set_target_file_size_base(0x8000000);
+        
+        opts.create_if_missing(true);
+        let mut db = DB::open(&opts, path).unwrap();
+        */
+
+
         for collection_index in 0..collection_count 
         {
             println!("indexing Collection: {}", collection_index);
-            count += index_files(source_path, common_word_path, collection_index, collection_count, worker_count);
-            
+            count += index_files(source_path, common_word_path, collection_index, collection_count, worker_count, limit);
         }
 
         let e = s.elapsed();
-        println!("total time: {:?} total word count:{}", e, count);
-          
+        println!("total time: {:?} total words indexed count:{}", e, count);
+
+        //let optional:AsRef<[u8]>;
+        /*
+        {
+            let s = Instant::now();
+            let optional: Option<&[u8]> = None;
+            db.compact_range(optional, optional);
+            let e = s.elapsed();
+            println!("total compaction: {:?} ", e);
+        }
+        */
+
+        
         Ok(())
     }
 
-    pub fn index_files(source_path:&'static str, common_word_path:&'static str, collection_index:u32, collection_count: u32, worker_count:u8) -> u64
+    pub fn index_files(source_path:&'static str, common_word_path:&'static str, collection_index:u32, collection_count: u32, worker_count:u8, limit:u32) -> u64
     {
-        let path = "C:\\Dev\\rust\\fts\\data\\rocks.db";
-        let mut opts = Options::default();
-        opts.create_if_missing(true);
-        let mut db = DB::open(&opts, path).unwrap();
+ 
+
 
         if worker_count == 1
         {
+            let data_path = "C:\\Dev\\rust\\fts\\data\\index";
+            let wad_suffix = [collection_index.to_string(),".wad".to_string()].join(&String::from("_"));
+            let seg_suffix = [collection_index.to_string(),".seg".to_string()].join(&String::from("_"));
+
+            let wad_file = Path::new(data_path).join(wad_suffix).display().to_string();
+            let segment_file = Path::new(data_path).join(seg_suffix).display().to_string();
+
             let s = Instant::now();
-            let hm = index(source_path,common_word_path,collection_index,collection_count,255,1);
+            let hm = index(source_path,common_word_path,collection_index,collection_count,255,1,limit);
             let counts = get_count(&hm);
 
             let e = s.elapsed();
@@ -455,9 +493,9 @@
 
             let saving_start = Instant::now();
 
-
+            index_writer::write_segment(&wad_file,&segment_file,&hm).unwrap();
         
-            rocks_db::save(&mut db, &hm, collection_index);
+            //rocks_db::save(db, &hm, collection_index);
 
             let saving_end = saving_start.elapsed();
             println!("save time: {:?}", saving_end);
@@ -486,32 +524,44 @@
                 // Spin up another thread
                 workers.push(thread::spawn(move || {
                     println!("spawning worker {}", i);
-                    let hm = index(source_path,common_word_path,collection_index,collection_count,i,worker_count);
-                    hm
+                    let hm = index(source_path,common_word_path,collection_index,collection_count,i,worker_count,0);
+
+                    let data_path = "C:\\Dev\\rust\\fts\\data\\index";
+                    let wad_suffix = [collection_index.to_string(),i.to_string(),".wad".to_string()].join(&String::from("_"));
+                    let seg_suffix = [collection_index.to_string(),i.to_string(),".seg".to_string()].join(&String::from("_"));
+
+                    let wad_file = Path::new(data_path).join(wad_suffix).display().to_string();
+                    let segment_file = Path::new(data_path).join(seg_suffix).display().to_string();
+                    index_writer::write_segment(&wad_file,&segment_file,&hm).unwrap();
+            
+                    0
                 }));
             }
 
 
             //Master Doc
+            /*
             let mut mm:HashMap<u128,WordBlock> = HashMap::new();
 
             for worker in workers {
                 let hm = worker.join().unwrap();
                 copy_map(&mut mm,hm);
             }
+            */
+
+            for worker in workers {
+                worker.join().unwrap();
+                //copy_map(&mut mm,hm);
+            }
 
             //index_writer::write_new(wad_file ,word_block, &mm,33);
-            let saving_start = Instant::now();
-            rocks_db::save(&mut db, &mm,collection_index);
-            let saving_end = saving_start.elapsed();
-            println!("save time: {:?}", saving_end);
-         
+            
 
 
-            let count = get_count(&mm);
+            //let count = get_count(&mm);
             let e = s.elapsed();
-            println!("time: {:?} count:{:?}", e,count);
-            return count.0;
+            println!("time: {:?} ", e);
+            return 0;
         }
 
     }

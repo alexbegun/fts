@@ -38,7 +38,7 @@ fn test_dist()
 
 fn main()-> io::Result<()>  {
 
-    tantivy_test::index("C:\\Dev\\rust\\fts\\tantivy","C:\\Dev\\books\\lib");
+    //tantivy_test::index("C:\\Dev\\rust\\fts\\tantivy","C:\\Dev\\books\\lib");
  
 
     //let h = metro::hash64(b"hello world\xff");
@@ -48,7 +48,6 @@ fn main()-> io::Result<()>  {
     //rocks_db::test_rocksdb();
     //test_dist();
 
-    /*
     let path: &'static str = "C:\\Dev\\books\\lib";
 
     //let path: &'static str = "C:\\Dev\\rust\\fts\\data\\samples";
@@ -57,8 +56,8 @@ fn main()-> io::Result<()>  {
     //let wad_file = "C:\\Dev\\rust\\fts\\data\\wad.bin";
     //let word_block = "C:\\Dev\\rust\\fts\\data\\wordblock.bin";
 
-    indexer::index_all(path, common_word_path, 6, 10);
-  */
+    indexer::index_all(path, common_word_path, 1, 1, 1);
+  
     //indexer::index_files(wad_file, word_block, path, common_word_path);
     
     //let hw = hash_word_to_u128("abcdefghijklmnop");
