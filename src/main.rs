@@ -56,7 +56,7 @@ fn main()-> io::Result<()>  {
     //let wad_file = "C:\\Dev\\rust\\fts\\data\\wad.bin";
     //let word_block = "C:\\Dev\\rust\\fts\\data\\wordblock.bin";
 
-    indexer::index_all(path, common_word_path, 1, 1, 1);
+    indexer::index_all(path, common_word_path, 5, 5, 0);
   
     //indexer::index_files(wad_file, word_block, path, common_word_path);
     

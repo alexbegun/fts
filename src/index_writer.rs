@@ -6,10 +6,14 @@ use std::collections::HashMap;
 use crate::indexer;
 use crate::word_hash;
 
-use std::io::SeekFrom;
 use std::io::{self, prelude::*};
 use std::collections::BTreeMap;
 
+use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+
+
+use std::path::PathBuf;
+use memmap::MmapMut;
 
 //word address directory value
 pub struct WadValue {
@@ -486,10 +490,8 @@ pub fn write_existing(wad_file: &str, block_file: & str, hm:& HashMap<u128,index
 
 pub fn rewrite_wad(wad_file: &str, wad_map:BTreeMap<u128,WadValue>)-> io::Result<()>
 {
-    let mut wadh = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .open(wad_file).unwrap();
+    
+    let mut wadh_cursor = Cursor::new(Vec::new());
 
     let mut total_count = 0;
     //Now write wad_map to wad_filegi
@@ -499,28 +501,43 @@ pub fn rewrite_wad(wad_file: &str, wad_map:BTreeMap<u128,WadValue>)-> io::Result
 
         let mut key_bytes = [0; 16];
         BigEndian::write_uint128(&mut key_bytes, *key, 16);
-        wadh.write_all(&key_bytes)?;
+        wadh_cursor.write_all(&key_bytes)?;
 
         let mut capacity = [0; 4];
         BigEndian::write_u32(&mut capacity, v.capacity);
-        wadh.write_all(&capacity)?;
+        wadh_cursor.write_all(&capacity)?;
 
         let mut address = [0; 4];
         BigEndian::write_u32(&mut address, v.address);
-        wadh.write_all(&address)?;
+        wadh_cursor.write_all(&address)?;
 
         let mut position = [0; 4];
         BigEndian::write_u32(&mut position, v.position);
-        wadh.write_all(&position)?;
+        wadh_cursor.write_all(&position)?;
 
         total_count = total_count + 1;
     }
+
+    wadh_cursor.seek(SeekFrom::Start(0)).unwrap();
+    let mut out = Vec::new();
+    wadh_cursor.read_to_end(&mut out).unwrap();
+
+    let wadh = OpenOptions::new()
+    .read(true)
+    .write(true)
+    .create(true)
+    .open(wad_file)?;
+    wadh.set_len((out.len()) as u64)?;
+
+    let mut mmap = unsafe { MmapMut::map_mut(&wadh)? };
+    mmap.copy_from_slice(&out);    
 
     println!("total word count written: {}", total_count);
 
     Ok(())
 }
 
+/*
 pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::WordBlock>,  fill_factor: u8)-> io::Result<()>
 {
     
@@ -561,6 +578,7 @@ pub fn write_new(wad_file: &str, block_file: & str, hm:& HashMap<u128,indexer::W
 
     Ok(())
 }
+*/
 
 
 
@@ -573,11 +591,9 @@ pub fn write_segment(wad_file: &str, segment_file: & str, hm:& HashMap<u128,inde
 
     let mut wad_map:BTreeMap<u128,WadValue> = BTreeMap::new();
     let mut address = 0;
-    let mut bfh = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(segment_file).unwrap();
+
+    let mut bfh_cursor = Cursor::new(Vec::new());
+
 
     //Write to block file and fill wad_map
     for (key, v) in hm.iter() 
@@ -590,19 +606,30 @@ pub fn write_segment(wad_file: &str, segment_file: & str, hm:& HashMap<u128,inde
         
         let mut key_bytes = [0; 16];
         BigEndian::write_uint128(&mut key_bytes, *key, 16);
-        bfh.write_all(&key_bytes)?; //write key, because this will help later with retrieval
-        bfh.write_all(&v.buffer)?; //write block
-       
-        /*
-        let pad_size = (cap - len) as usize;
-        let mut pad_buffer:Vec<u8> = Vec::with_capacity(pad_size);
-        pad_buffer.resize(pad_size, 0);
+        //bfh.write_all(&key_bytes)?; //write key, because this will help later with retrieval
+        //bfh.write_all(&v.buffer)?; //write block
 
-        bfh.write_all(&pad_buffer)?; //write padding
-        */
+        bfh_cursor.write_all(&key_bytes)?; //write key, because this will help later with retrieval
+        bfh_cursor.write_all(&v.buffer)?; //write block
     }
 
+    bfh_cursor.seek(SeekFrom::Start(0)).unwrap();
+    let mut out = Vec::new();
+    bfh_cursor.read_to_end(&mut out).unwrap();
+
+    let bfh = OpenOptions::new()
+    .read(true)
+    .write(true)
+    .create(true)
+    .open(segment_file)?;
+    bfh.set_len((out.len()) as u64)?;
+
+    let mut mmap = unsafe { MmapMut::map_mut(&bfh)? };
+    mmap.copy_from_slice(&out);
+
     rewrite_wad(wad_file,wad_map)?;
+
+    
 
     Ok(())
 }

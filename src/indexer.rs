@@ -16,11 +16,6 @@
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
     
-    use rocksdb::{Options, DB, MergeOperands};
-
-    
-    use encoding_rs::WINDOWS_1252;
-    use encoding_rs_io::DecodeReaderBytesBuilder;
     
      //Main structure representing a Word Block
     pub struct WordBlock {
@@ -112,7 +107,8 @@
             let b3 : u8 = ((doc_id >> 8) & 0xff) as u8;
             let b4 : u8 = (doc_id & 0xff) as u8;
             wb.buffer.extend([b1, b2, b3, b4].iter().copied());
-            wb.latest_index = 0; //Don't forget to rest the latest index
+            
+            wb.latest_index = 0; //Don't forget to reset the latest index
         }
 
         //Calculate the offset
@@ -360,7 +356,6 @@
 
             if (doc_id % worker_count as u32) as u8 == worker_id || worker_id == 255
             {
-                println!("parsing: {}", doc_file);
                 parse_file(doc_id, &doc_file, & mut hm, &com).expect("Unable to parse file.");
                 count = count + 1;
             }

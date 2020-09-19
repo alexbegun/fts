@@ -1,0 +1,2 @@
+1. Compress Document Ids from 4 to either 2 or 3 bytes, create a mapping table which maps document names to Ids
+2. Compress words to WordIds of 4 bytes -> May improve performance
