@@ -11,7 +11,6 @@ mod tantivy_test;
 use std::time::{Instant};
 use std::io::{self};
 
-
 fn test_dist()
 {
 
@@ -36,7 +35,8 @@ fn test_dist()
 }
 
 
-fn main()-> io::Result<()>  {
+fn main()-> io::Result<()>  
+{
 
     //tantivy_test::index("C:\\Dev\\rust\\fts\\tantivy","C:\\Dev\\books\\lib");
  
@@ -58,6 +58,7 @@ fn main()-> io::Result<()>  {
 
     indexer::index_all(path, common_word_path, 5, 5, 0);
   
+
     //indexer::index_files(wad_file, word_block, path, common_word_path);
     
     //let hw = hash_word_to_u128("abcdefghijklmnop");

@@ -61,7 +61,7 @@ pub fn index(index_path: &str, data_path: &str)-> tantivy::Result<()>
 
     get_all_files(data_path,&mut v);
 
-    let mut index_writer = index.writer(3_000_000_000)?;
+    let mut index_writer = index.writer(5_000_000_000)?;
 
     let mut count = 0;
 
@@ -78,7 +78,7 @@ pub fn index(index_path: &str, data_path: &str)-> tantivy::Result<()>
 
         index_writer.add_document(doc);
 
-        if count % 20000 == 0
+        if count % 10000 == 0
         {
             index_writer.commit().unwrap();
             println!("commiting... {}",count);

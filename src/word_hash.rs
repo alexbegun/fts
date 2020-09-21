@@ -19,6 +19,35 @@ pub fn hash_word_to_u128(word:&str) -> u128
     let mut r:u128 = 0;
     if word.len()<=16
     {
+        /*
+        for (i, c) in word.to_lowercase().chars().enumerate() 
+        {
+            r = r | (c as u128) << (128 - (i + 1)*8);
+        }
+        */
+
+        let mut i = 0;
+        for c in word.chars()
+        {
+            if c>='A' && c<='Z'
+            {
+                r = r | ((c as u8 + 32) as u128) << (128 - (i + 1)*8);
+            }
+            else
+            {
+                r = r | (c as u128) << (128 - (i + 1)*8);
+            }
+            i = i + 1;
+        }
+    }
+    r
+}
+
+pub fn hash_word_to_u1282(word:&str) -> u128
+{
+    let mut r:u128 = 0;
+    if word.len()<=16
+    {
         for (i, c) in word.chars().enumerate() 
         {
             r = r | (c as u128) << (128 - (i + 1)*8);

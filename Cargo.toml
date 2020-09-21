@@ -15,4 +15,6 @@ tempdir = "0.3.7"
 memmap = "0.7.0"
 
 [profile.release]
-debug = true
+debug = false
+
+

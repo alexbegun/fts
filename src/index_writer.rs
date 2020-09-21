@@ -606,10 +606,7 @@ pub fn write_segment(wad_file: &str, segment_file: & str, hm:& HashMap<u128,inde
         
         let mut key_bytes = [0; 16];
         BigEndian::write_uint128(&mut key_bytes, *key, 16);
-        //bfh.write_all(&key_bytes)?; //write key, because this will help later with retrieval
-        //bfh.write_all(&v.buffer)?; //write block
-
-        bfh_cursor.write_all(&key_bytes)?; //write key, because this will help later with retrieval
+        //bfh_cursor.write_all(&key_bytes)?; //write key, because this will help later with retrieval, NOT ANY MORE, At least I don't think so.
         bfh_cursor.write_all(&v.buffer)?; //write block
     }
 
