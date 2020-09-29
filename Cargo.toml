@@ -13,8 +13,16 @@ metrohash = "1.0.6"
 tantivy = "0.13"
 tempdir = "0.3.7"
 memmap = "0.7.0"
+bumpalo = { version = "3.4", features = ["collections"] }
 
 [profile.release]
-debug = false
+debug = true
 
 
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = []
+collections = []
+boxed = []

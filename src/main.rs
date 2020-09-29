@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "collections",)]
+
 extern crate tantivy;
 mod distance;
 mod indexer;
@@ -5,11 +7,15 @@ mod index_writer;
 mod word_hash;
 mod common_words;
 mod indexer_diagnostics;
-mod rocks_db;
 mod tantivy_test;
+mod bumo_feat;
 
 use std::time::{Instant};
 use std::io::{self};
+
+
+use std::cell::Cell;
+
 
 fn test_dist()
 {
@@ -37,7 +43,7 @@ fn test_dist()
 
 fn main()-> io::Result<()>  
 {
-
+    bumo_feat::push_a_bunch_of_items();
     //tantivy_test::index("C:\\Dev\\rust\\fts\\tantivy","C:\\Dev\\books\\lib");
  
 
@@ -56,7 +62,7 @@ fn main()-> io::Result<()>
     //let wad_file = "C:\\Dev\\rust\\fts\\data\\wad.bin";
     //let word_block = "C:\\Dev\\rust\\fts\\data\\wordblock.bin";
 
-    indexer::index_all(path, common_word_path, 5, 5, 0);
+    //indexer::index_all(path, common_word_path, 1, 1, 2000);
   
 
     //indexer::index_files(wad_file, word_block, path, common_word_path);
@@ -64,6 +70,23 @@ fn main()-> io::Result<()>
     //let hw = hash_word_to_u128("abcdefghijklmnop");
     //let w = unhash_word(hw);
     //println!("'{}'", w);
+
+
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
 
     Ok(())        
 }

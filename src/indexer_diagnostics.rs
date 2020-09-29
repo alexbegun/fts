@@ -299,7 +299,7 @@ use std::collections::HashMap;
     }
 
 
-    pub fn list_top_64(hm:& HashMap<u128,indexer::WordBlock>)
+    pub fn list_top(hm:& HashMap<u128,indexer::WordBlock>, count:usize )
     {
         let mut vec:Vec<InstanceCount> = Vec::new();
         for (k, v) in hm.iter() {
@@ -308,20 +308,73 @@ use std::collections::HashMap;
         //vec.sort();
         vec.sort_by(|a, b| b.cmp(a));
         let mut com_count = 0;
-        for i in 0..64
+        for i in 0..count
         {
             com_count = com_count + vec[i].count;
-            println!("{0}",word_hash::unhash_word(vec[i].word)); //,vec[i].count);
+            println!("{0}, {1}",word_hash::unhash_word(vec[i].word), vec[i].count); //,vec[i].count);
         }
 
         let mut other_count = 0;
-        for i in 64..vec.len()
+        for i in count..vec.len()
         {
             other_count = other_count + vec[i].count;
         }
 
 
-        println!("top 64 count:{}",com_count);
+        println!("top {} count:{}",count, com_count);
         println!("rest count:  {}",other_count);
+
+    }
+
+    pub fn list_top_by_size(hm:& HashMap<u128,indexer::WordBlock>, count:usize )
+    {
+        let mut vec:Vec<InstanceCount> = Vec::new();
+        for (k, v) in hm.iter() {
+            vec.push(InstanceCount {word:*k, count:v.buffer.len() as u32});
+        }
+        //vec.sort();
+        vec.sort_by(|a, b| b.cmp(a));
+        let mut com_count = 0;
+        for i in 0..count
+        {
+            com_count = com_count + vec[i].count;
+            println!("{0}, {1}",word_hash::unhash_word(vec[i].word), vec[i].count); //,vec[i].count);
+        }
+
+        let mut other_count = 0;
+        for i in count..vec.len()
+        {
+            other_count = other_count + vec[i].count;
+        }
+
+
+        println!("top {} count:{}",count, com_count);
+        println!("rest count:  {}",other_count);
+
+    }
+
+
+
+
+    pub fn build_freq_map(hm:& HashMap<u128,indexer::WordBlock>, count:usize, fm:& mut HashMap<u128,u32>)
+    {
+        let mut vec:Vec<InstanceCount> = Vec::new();
+        for (k, v) in hm.iter() {
+            vec.push(InstanceCount {word:*k, count:v.word_count as u32});
+        }
+        //vec.sort();
+        vec.sort_by(|a, b| b.cmp(a));
+
+        let mut ct = count;
+        println!("Total Word count is:{}",vec.len());
+        if count > vec.len()
+        {
+            ct = vec.len();
+        }
+
+        for i in 0..ct
+        {
+            fm.insert(vec[i].word, vec[i].count);
+        }
 
     }

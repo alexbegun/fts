@@ -59,7 +59,7 @@ pub fn index(index_path: &str, data_path: &str)-> tantivy::Result<()>
 
     let s = Instant::now();
 
-    get_all_files(data_path,&mut v);
+    get_all_files(data_path,&mut v)?;
 
     let mut index_writer = index.writer(5_000_000_000)?;
 
@@ -84,6 +84,11 @@ pub fn index(index_path: &str, data_path: &str)-> tantivy::Result<()>
             println!("commiting... {}",count);
             let e = s.elapsed();
             println!("elapsed time: {:?}", e);        
+        }
+
+        if count == 20000
+        {
+            break;
         }
 
     }
