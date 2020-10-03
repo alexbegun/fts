@@ -1,3 +1,4 @@
+use std::time::{Instant};
 
 fn push_to_window(hit_pos:u8, hit_word_index:u8, proximity_window: &mut Vec<(u8,u8)>)
 {
@@ -103,3 +104,27 @@ pub fn find_smallest_distance(vec:& Vec<u128>) ->(u8,bool)
 
     (smallest_distance,smallest_in_order)
 }
+
+fn test_dist()
+{
+
+    let s = Instant::now();
+
+
+    let mut vec: Vec<u128> = Vec::new();
+
+    vec.push(0b_0100_0000_0000_0000);
+    vec.push(0b_1000_0000_0010_0000);
+    vec.push(0b_0000_0000_0000_0001);
+    vec.push(0b_0010_0000_1000_0000);
+    let (d,o) = find_smallest_distance(&vec);
+    println!("smallest distance: {} is ordered: {}",d,o);
+
+    let e = s.elapsed();
+    println!("time: {:?}", e);
+
+    
+    //let (d,o) = distance::find_smallest_distance(&vec);
+    
+}
+
