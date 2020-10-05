@@ -116,7 +116,13 @@
     //derives a document id from file name
     fn get_doc_id(doc_file:&str) -> u32 
     {
-        let path_parts_ar:Vec<&str> = doc_file.split("\\").collect();
+        //KLUDGE: NEED TO FIX THIS BETTER SO WORKS ON LINUX
+        let mut path_parts_ar:Vec<&str> = doc_file.split("/").collect();
+        if path_parts_ar.len() == 1
+        {
+            path_parts_ar = doc_file.split("\\").collect();
+        }
+
         let file_parts_ar:Vec<&str> = path_parts_ar[path_parts_ar.len() - 1].split(".").collect();
         let name_parts_ar:Vec<&str> = file_parts_ar[0].split("-").collect();
         let doc_id: u32 = name_parts_ar[0].parse().unwrap_or(0);
@@ -125,7 +131,7 @@
 
 
     //adds a word position to a particular WordBlock along with adjacent words
-    fn add_word_to_hash_map(doc_id:u32,word_index:u32,law:u8,w:u128,raw:u8,hm:&mut HashMap<u128,WordBlock>, realoc_count:&mut u32)
+    fn add_word_to_hash_map(doc_id:u32,word_index:u32,law:u8,w:u128,raw:u8,hm:&mut HashMap<u128,WordBlock>)
     {
     
 
@@ -397,7 +403,7 @@
                     //only add if not a common word.
                     if cw==nomatch && w!=0
                     {
-                        add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm, realoc_count);
+                        add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm);
                     }
                     
                     word.clear();
@@ -420,14 +426,14 @@
             //only add if not a common word.
             if cw==255 && w!=0
             {
-                add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm, realoc_count);
+                add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm);
             }
 
             //finally if at the end also add the last word if not common.println!
             //only add if not a common word.
             if rawh==255 && r!=0
             {
-                add_word_to_hash_map(doc_id,word_index, cw, r, nomatch, hm, realoc_count);
+                add_word_to_hash_map(doc_id,word_index, cw, r, nomatch, hm);
             }
             word_index = word_index + 1;
         }
@@ -494,7 +500,7 @@
                     //only add if not a common word.
                     if cw==nomatch && w!=0
                     {
-                        add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm, realoc_count);
+                        add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm);
                     }
                     word_index = word_index + 1;
                     started = false; //reset started flag.
@@ -527,14 +533,14 @@
             //only add if not a common word.
             if cw==255 && w!=0
             {
-                add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm, realoc_count);
+                add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm);
             }
 
             //finally if at the end also add the last word if not common.println!
             //only add if not a common word.
             if rawh==255 && r!=0
             {
-                add_word_to_hash_map(doc_id,word_index, cw, r, nomatch, hm, realoc_count);
+                add_word_to_hash_map(doc_id,word_index, cw, r, nomatch, hm);
             }
             word_index = word_index + 1;
         }
@@ -561,12 +567,12 @@
  
 
  
-    fn index(doc_files: &Vec<String>, hm: &mut HashMap<u128,WordBlock>, common_word_path:&str,collection_index:u32,collection_count: u32, worker_id:u8, worker_count:u8, limit:u32, realoc_count:&mut u32)
+    fn index(doc_files: &Vec<String>, common_words: &HashMap<Vec<u8>,u8>,  hm: &mut HashMap<u128,WordBlock>,collection_index:u32,collection_count: u32, worker_id:u8, worker_count:u8, limit:u32)
     {
         //let full_path = Path::new(source_path).join(doc_collection.to_string()).display().to_string();
 
-        let mut com:HashMap<u128, u8> =  HashMap::new();
-        common_words::load(common_word_path, & mut com).expect("Error Loading common words.");
+        //let mut com:HashMap<u128, u8> =  HashMap::new();
+        //common_words::load(common_word_path, & mut com).expect("Error Loading common words.");
 
         //let mut doc_files = Vec::new();
         //get_files_by_hash_bucket(&source_path,collection_index,collection_count, & mut doc_files).expect("Error Loading source file path.");
@@ -622,40 +628,45 @@
             let mut cw:u8 = nomatch;
             let mut lawh:u8;
        
-            let mut word: Vec<u8> = Vec::with_capacity(8);
+            let mut word: Vec<u8> = Vec::with_capacity(20);
            
-                        
             for c in content
             { 
-                if (*c as char).is_alphanumeric() || (*c as char)=='\''
+                match *c
                 {
-                    word.push(*c);
-                }
-                else 
-                {
-                    if word.len() > 0
-                    {
-                        //l = w;
-                        lawh = cw;
-                        
-                        w = r;
-                        cw = rawh;
-                        
-                        r = word_hash::hash_v_word_to_u128(&word);
-                        rawh = common_words::map_to(&com,&r);
-
-                        
-                        //only add if not a common word.
-                        if cw==nomatch && w!=0
+                    65..=90 => word.push(*c + 32), //If A - Z then turn to lower case
+                    97..=122 | 39 | 45 | 48..=57 => word.push(*c), //If a-z, or ' - or 0-9
+                    _ =>
                         {
-                            add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm, realoc_count);
-                        }
-                        
-                        word.clear();
-                        word_index = word_index + 1;
-                    }
-                }
+                            if word.len() > 0
+                            {
+                                lawh = cw;
+                                w = r;
+                                cw = rawh;
+                                
+                                rawh = common_words::map_v_to(common_words,&word);
 
+                                if rawh == nomatch
+                                {
+                                    r = word_hash::hash_v_word_to_u128(&word);
+                                }
+                                else
+                                {
+                                    r = 0;
+                                }
+
+                                
+                                if cw==nomatch && w!=0 //only add if not a common word.
+                                {
+                                    add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm);
+                                }
+                                word.clear();
+                                word_index = word_index + 1;
+                            }
+
+                        }
+
+                }
                 
             }
             if word.len() > 0
@@ -663,27 +674,31 @@
                 
                 //l = w;
                 lawh = cw;
-                
                 w = r;
                 cw = rawh;
-                
-                r = word_hash::hash_v_word_to_u128(&word);
-                rawh = common_words::map_to(&com,&r);
 
+                rawh = common_words::map_v_to(&common_words,&word);
+                if rawh == nomatch
+                {
+                    r = word_hash::hash_v_word_to_u128(&word);
+                }
+                else
+                {
+                    r = 0;
+                }
+        
                 //only add if not a common word.
                 if cw==255 && w!=0
                 {
-                    add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm, realoc_count);
+                    add_word_to_hash_map(doc_id,word_index - 1, lawh, w, rawh, hm);
                 }
 
                 //finally if at the end also add the last word if not common.println!
                 //only add if not a common word.
                 if rawh==255 && r!=0
                 {
-                    add_word_to_hash_map(doc_id,word_index - 1, cw, r, nomatch, hm, realoc_count);
-                    //add_word_to_big_v(doc_id,word_index, cw, r, nomatch, hm, big_v);
+                    add_word_to_hash_map(doc_id,word_index - 1, cw, r, nomatch, hm);
                 }
-                word_index = word_index + 1;
             }
 
             count+=1;
@@ -695,7 +710,7 @@
     }
 
 
-
+/*
     fn index_2(doc_files: &Vec<String>, hm: &mut HashMap<u128,WordBlock2>, common_word_path:&str,collection_index:u32,collection_count: u32, worker_id:u8, worker_count:u8, limit:u32, master_vec:&mut Vec<Vec<u8>>)
     {
         //let full_path = Path::new(source_path).join(doc_collection.to_string()).display().to_string();
@@ -825,7 +840,7 @@
 
         println!("worker_id: {:?}  count: {:?}", worker_id, count);
     }
-
+*/
 
 
     fn add_terminators(m: &mut HashMap<u128,WordBlock>)
@@ -875,9 +890,11 @@
         let s = Instant::now();
 
         let mut doc_files = Vec::new();
-        let mut realoc_count:u32 = 0;
-          
         get_all_files(&source_path,&mut doc_files)?;
+        let mut com_words = HashMap::new();
+        common_words::load(&common_word_path, &mut com_words)?;
+
+        
         let e = s.elapsed();
         println!("get file paths: {:?}, {} files listed to load", e,doc_files.len());
 
@@ -885,19 +902,19 @@
         let mut count = 0;
 
         let doc_files_arc = Arc::new(doc_files); 
+        let com_words_arc = Arc::new(com_words); 
         let source_path_arc = Arc::new(source_path);
-        let common_word_path_arc = Arc::new(common_word_path);
         let index_path_arc = Arc::new(index_path);
 
 
         for collection_index in 0..collection_count 
         {
             println!("indexing Collection: {}", collection_index);
-            count += index_files(&doc_files_arc, &source_path_arc, &common_word_path_arc, &index_path_arc,collection_index, collection_count, worker_count, limit, &mut realoc_count);
+            count += index_files(&doc_files_arc,&com_words_arc, &source_path_arc, &index_path_arc,collection_index, collection_count, worker_count, limit);
         }
 
         let e = s.elapsed();
-        println!("total time: {:?} total words indexed count:{}, realocation count:{}", e, count, realoc_count);
+        println!("total time: {:?} total words indexed count:{}", e, count);
 
        
         Ok(())
@@ -977,7 +994,7 @@
 
 
 
-    pub fn index_files(doc_files_arc: &Arc<Vec<String>>, source_path_arc:&Arc<String>, common_word_path_arc:&Arc<String>,index_path_arc:&Arc<String>, collection_index:u32, collection_count: u32, worker_count:u8, limit:u32, realoc_count:&mut u32) -> u64
+    pub fn index_files(doc_files_arc: &Arc<Vec<String>>, com_words_arc: &Arc<HashMap<Vec<u8>,u8>>, source_path_arc:&Arc<String>, index_path_arc:&Arc<String>, collection_index:u32, collection_count: u32, worker_count:u8, limit:u32) -> u64
     {
         if worker_count == 1
         {
@@ -1003,7 +1020,7 @@
         
                 let s = Instant::now();
 
-                index(&doc_files_arc,&mut hm,&common_word_path_arc,collection_index,collection_count,255,1,limit,realoc_count);
+                index(&doc_files_arc,&com_words_arc, &mut hm,collection_index,collection_count,255,1,limit);
     
                 let counts = get_count(&hm);
 
@@ -1036,8 +1053,8 @@
             let mut workers = vec![];
             for i in 0..worker_count 
             {
-                let clone_arc = Arc::clone(&doc_files_arc);
-                let common_word_path_arc_c = Arc::clone(&common_word_path_arc);
+                let doc_files_c = Arc::clone(&doc_files_arc);
+                let com_word_c = Arc::clone(&com_words_arc);
                 let index_path_arc_c = Arc::clone(&index_path_arc);
                 
                 // Spin up another thread
@@ -1046,7 +1063,7 @@
                     let mut hm:HashMap<u128,WordBlock> = HashMap::with_capacity(10_000);
                     let mut realoc_count:u32 = 0;
 
-                    index(&clone_arc, &mut hm, &common_word_path_arc_c,collection_index,collection_count,i,worker_count,limit,&mut realoc_count);
+                    index(&doc_files_c,&com_word_c, &mut hm,collection_index,collection_count,i,worker_count,limit);
 
                     let wad_suffix = [collection_index.to_string(),i.to_string(),".wad".to_string()].join(&String::from("_"));
                     let seg_suffix = [collection_index.to_string(),i.to_string(),".seg".to_string()].join(&String::from("_"));

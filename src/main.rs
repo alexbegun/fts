@@ -39,7 +39,7 @@ fn main()-> io::Result<()>
         let path = String::from("C:\\Dev\\books\\lib");
         let common_word_path = String::from("C:\\Dev\\rust\\fts\\src\\top64.txt");
         let index_path = String::from("C:\\Dev\\rust\\fts\\data\\index");
-        indexer::index_all(path, common_word_path,index_path, 4, 6, 0)?;
+        indexer::index_all(path, common_word_path,index_path, 5, 5, 0)?;
     }
     else
     {

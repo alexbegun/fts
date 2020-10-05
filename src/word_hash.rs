@@ -1,3 +1,5 @@
+use unroll::unroll_for_loops;
+
 pub fn unhash_word(word_hash:u128) -> String
 {
     let mut word = String::with_capacity(16);
@@ -13,32 +15,17 @@ pub fn unhash_word(word_hash:u128) -> String
     word
 }
 
-
+#[unroll_for_loops]
 pub fn hash_v_word_to_u128(word:&Vec<u8>) -> u128
 {
     let mut r:u128 = 0;
-    if word.len()<=16
+    for i in 0..16
     {
-        /*
-        for (i, c) in word.to_lowercase().chars().enumerate() 
+        if i + 1>= word.len()
         {
-            r = r | (c as u128) << (128 - (i + 1)*8);
+            return r;
         }
-        */
-
-        let mut i = 0;
-        for c in word
-        {
-            if *c>=65 && *c<=90
-            {
-                r = r | ((*c as u8 + 32) as u128) << (128 - (i + 1)*8);
-            }
-            else
-            {
-                r = r | (*c as u128) << (128 - (i + 1)*8);
-            }
-            i = i + 1;
-        }
+        r = r | (word[i] as u128) << (128 - (i + 1)*8);
     }
     r
 }
