@@ -1,3 +1,21 @@
-0. Allow passing of Doc List paths to each thread.
 1. Compress Document Ids from 4 to either 2 or 3 bytes, create a mapping table which maps document names to Ids???
 2. Compress words to WordIds of 4 bytes -> May improve performance ???
+
+
+
+1840053721
+1840035865 (5,5)
+
+1840035865 (5,1)
+1840106198 (3,1)
+
+
+(2,1) => 1840114836
+(3,1) => 1840114836
+(4,1) => 1840114836
+(3,3) => 1840114836
+(4,4) => 1840114836
+(4,5) => 1840114836
+
+(4,4):   2815452172
+count:2815452172

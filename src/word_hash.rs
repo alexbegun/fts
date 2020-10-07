@@ -21,7 +21,7 @@ pub fn hash_v_word_to_u128(word:&Vec<u8>) -> u128
     let mut r:u128 = 0;
     for i in 0..16
     {
-        if i + 1>= word.len()
+        if i>= word.len()
         {
             return r;
         }

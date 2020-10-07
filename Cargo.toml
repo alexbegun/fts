@@ -12,9 +12,7 @@ metrohash = "1.0.6"
 tantivy = "0.13"
 tempdir = "0.3.7"
 memmap = "0.7.0"
-bumpalo = { version = "3.4", features = ["collections"] }
 unroll = "0.1.5"
-
 [profile.release]
 debug = true
 
